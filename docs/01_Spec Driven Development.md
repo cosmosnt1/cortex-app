@@ -13,21 +13,20 @@ author: Aura Markdown v07
 
 - `Visión`: Suite integral nativa para producción ejecutiva cinematográfica.
 - `Módulo Actual`: Cortex Liquidación. Sistema nativo de rendición DAFO con extracción inteligente y gestión de archivos.
-- `Estética`: High-end iOS (iOS 18+ style), Glassmorphism extremo, desenfoques, tipografía San Francisco, paleta de azules profundos (`#007AFF` y variantes oscuras). Experiencia fluida y "premium".
+- `Estética`: High-end iOS (iOS 18+ style), Glassmorphism, desenfoques, tipografía San Francisco. **Fijado estrictamente a Light Theme** para garantizar paridad WYSIWYG (What You See Is What You Get) con la exportación a PDF de reportes financieros.
 
 ---
 
 ## 2. Objetivos del MVP 🎯
 
 - `Native Grid`: Tabla interactiva dentro de la app que emula el formato DAFO pero con UX moderna.
-- `Exportación`: Botón de "Generar Reporte DAFO" que exporta a Excel (.xlsx) con el formato exacto requerido.
+- `Exportación`: Botón de "Generar Reporte DAFO" que exporta a PDF/Excel con el formato exacto requerido (fondo blanco, bordes limpios).
 - `Gestión de Archivos`:
-    - `Nomenclatura automática`: 
-        YYYY-MM-DD - Proveedor - NumeroComprobante.pdf
-    - `Previsualización`: Visualización nativa de PDF (600+ archivos con alto rendimiento).
-    - `Estados de Cuenta`: Subida mensual por proyecto.
-- `Cálculos Bancarios`: Registro manual de saldo bancario con timestamp de última actualización.
-- `Categorización Dinámica`: Creación de "Separadores/Sub-categorías" (Transporte, Logística, etc.) con lógica de agrupación (Parent-Child).
+    - `Nomenclatura automática`: YYYY-MM-DD - Proveedor - NumeroComprobante.pdf
+    - `Previsualización`: Visualización nativa de PDF con visor adaptativo al ancho.
+    - `Carrusel de Lotes`: Navegación inferior compacta para procesar múltiples comprobantes.
+- `Cálculos Bancarios`: Registro manual de saldo bancario con timestamp.
+- `Categorización Dinámica`: Creación de "Separadores/Sub-categorías" con lógica Parent-Child.
 
 ---
 
@@ -37,53 +36,35 @@ author: Aura Markdown v07
 - `Backend`: Node.js.
 - `Almacenamiento & Cloud`:
     - `Google Drive API`: Almacenamiento real de los PDFs.
-        Jerarquía: Proyecto > Actividad > PDF
-    - `Firebase Firestore`: Base de datos para el estado de la app (registros, sub-categorías, saldos).
-- `IA`: Gemini 1.5 Pro (Vision) para extracción de datos en facturas/RHE/boletas.
+    - `Firebase Firestore`: Base de datos para el estado de la app.
+- `IA`: **Gemini 1.5 Flash** para extracción de datos rápida, precisa y con alta cuota de límite.
 
 ---
 
 ## 4. Modelo de Datos Avanzado 📊
 
-
-
 ### 4.1 Entidades del Sistema
 
 | Entidad | Atributos | Propósito |
 | :--- | :--- | :--- |
-| `Proyecto` | id, nombre, premio_total, saldo_banco, ultima_actualizacion_banco, whitelist_emails | Datos maestros del proyecto y control financiero. |
-| `Gasto` | id, proyecto_id, actividad_id, subcategoria_id, fecha, tc, num_comprobante, proveedor, ruc, detalle, importe, responsable, drive_url | Registro detallado de cada movimiento y comprobante. |
-| `Categorías` | id, proyecto_id, actividad_id, nombre, orden | Estructura de organización para el reporte DAFO. |
+| `Proyecto` | id, nombre, **empresa**, **fondoGanado**, premio_total, saldo_banco, status | Datos maestros legales del proyecto y control financiero. |
+| `Gasto` | id, proyecto_id, actividad_id, fecha, tc, num_comprobante, proveedor, ruc, detalle, importe, drive_url | Registro detallado de cada movimiento extraído. |
+| `Categorías` | id, proyecto_id, actividad_id, nombre, orden | Estructura para el reporte DAFO. |
 
 ---
 
 ## 5. Arquitectura de Navegación 🗺️
 
-- `Dashboard Global`: Vista de "Pájaros" de todos los proyectos.
-- `Proyecto (Mesa de Trabajo)`:
-    - `Pestañas`: Navegación por Actividades.
-    - `Canvas`: Grid nativo de liquidación.
-    - `Documentos`: Sección de archivos bancarios.
-- `Visualizador`: Modal con efecto Glassmorphism para revisión y edición de datos extraídos.
+- `Dashboard Global`: Vista de proyectos con tarjetas claras, bordes azules y progreso.
+- `Proyecto (Mesa de Trabajo)`: Pestañas por Actividades, Grid nativo y Documentos.
+- `Visualizador (Extraction Drawer)`: Modal con diseño Glassmorphism de 2 columnas (Vista Previa 48% / Formulario Inteligente 52%).
 
 ---
 
 ## 6. Reglas de Negocio ⚖️
 
 Confirmación de Documento:
-    IF confirmación de datos -> Renombrar archivo en Drive según estándar YYYY-MM-DD
+    IF confirmación de datos -> Guardar gasto en Firestore Y auto-avanzar carrusel al siguiente documento.
 
 Persistencia de Datos:
-    IF cambio en Native Grid -> Sincronización instantánea con Firestore
-
-Gestión de Categorías:
-    IF eliminar "Separador" -> Preguntar (Mover gastos a "Sin Categoría" OR Borrar registros)
-
----
-
-## 7. UI/UX Requerimientos 🎨
-
-- `Componentes`: Card de proyecto con desenfoque de fondo (Background blur).
-- `Feedback`:
-    IF campo obligatorio vacío (RUC o Importe) -> Vibración visual (shaking)
-- `PDF Viewer`: Soporte para `pinch-to-zoom` y rotación para comprobantes mal escaneados.
+    IF cambio en Native Grid -> Sincronización instantánea con Firestore.

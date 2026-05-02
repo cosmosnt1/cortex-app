@@ -1,9 +1,9 @@
 ---
 document_type: system_specification
-title: Cortex (Cloudy-Bento) Visual Design Manual
-version: 0.7.0
+title: Cortex Visual Design Manual
+version: 1.0.0 (Light-Only MVP)
 compiler: Aura Markdown v07
-theme: Cloudy-Bento
+theme: Cloudy-Bento Light
 ---
 
 # 🌐 MANUAL DE DISEÑO VISUAL: CORTEX
@@ -14,70 +14,39 @@ theme: Cloudy-Bento
 
 ### 1.1 Estructura de Pantalla (Master Layout)
 
-- `sidebar_vertical`: Persistente a la izquierda. Fondo sólido en Light Mode, casi negro en Dark Mode. Íconos con estados activos en "burbuja" de color suave.
-- `main_canvas`: El área de contenido tiene un fondo con un gradiente muy sutil para dar profundidad.
-- `top_banner_contextual`: Área destacada en la parte superior que cambia según la pantalla.
+- `Decisión Arquitectónica`: **Light Theme Forzado**. Se eliminó el modo oscuro para evitar el efecto de "halación" visual en las tablas financieras densas (DAFO) y garantizar que lo que el usuario ve en pantalla es exactamente igual al PDF/Excel exportado (WYSIWYG).
+- `sidebar_vertical`: Persistente a la izquierda. Fondo blanco puro con bordes grises suaves.
+- `main_canvas`: Fondo de aplicación `bg-slate-50` o gradiente sutil blanco-azulado para dar profundidad.
 
-    IF Pantalla == Dashboard -> Resumen de fondos (Premio, Gastado, Saldo)
-    IF Pantalla == Proyecto -> Detalles del proyecto y barra de progreso
+### 1.2 Componentes de Navegación
 
-### 1.2 Componentes de Navegación (Folders & Cards)
-
-- `tarjetas_de_proyecto`: Rectángulos grandes con bordes `rounded-[32px]`. Muestran el logo del proyecto en 3D y una barra de progreso de liquidación integrada en la base.
-- `carpetas_de_actividad`: Siguiendo la imagen de referencia, cada una de las 6 actividades DAFO es una carpeta con un ícono 3D que "flota" sobre un fondo pastel con sombras suaves.
-- `seccion_latest`: Grid inferior de tarjetas pequeñas para los últimos comprobantes subidos, permitiendo una auditoría rápida visual.
+- `tarjetas_de_proyecto`: Rectángulos blancos `rounded-[32px]` con bordes `blue-100` y sombras amplias y difuminadas. Efecto de levitación (scale-105) en hover.
+- `carpetas_de_actividad`: Carpetas DAFO sobre fondos pasteles con sombras suaves.
 
 ---
 
 ## 2. Paleta de Colores Dinámica (Theming) 🎨
 
-| Elemento | Modo Light (Día) | Modo Dark (Noche) |
-| :--- | :--- | :--- |
-| Fondo Base | #F8F9FB (Gris Nube) | #0B0E14 (Deep Black) |
-| Cards / Folders | #FFFFFF (Blanco Puro) | #161B22 (Dark Grey-Blue) |
-| Sidebar | Blanco con borde #E5E7EB | #0D1117 con borde #30363D |
-| Texto Primario | #1A1D23 | #E6EDF3 |
-| Acento (Cortex Blue) | #007AFF | #58A6FF |
+| Elemento | Modo Light (Definitivo) |
+| :--- | :--- |
+| Fondo Base | #F8F9FB (Gris Nube / Slate-50) |
+| Cards / Folders | #FFFFFF (Blanco Puro) |
+| Bordes UI | Slate-200 / Blue-100 |
+| Texto Primario | Slate-800 / Slate-900 |
+| Texto Secundario | Slate-500 |
+| Acento Principal | #007AFF (Blue-600) / Success: Emerald-600 |
 
 ---
 
-## 3. Mapeo Visual DAFO (Iconografía 3D) 📽️
+## 3. Componentes de Interacción Avanzada ⚡
 
-- `actividad_1_crew`: Ícono 3D de grupo humano / Azul Pastel.
-- `actividad_2_pre_produccion`: Ícono 3D de claqueta o calendario / Naranja Melocotón.
-- `actividad_3_rodaje`: Ícono 3D de cámara de cine profesional / Verde Menta.
-- `actividad_4_transporte_logistica`: Ícono 3D de furgoneta o maleta / Amarillo Suave.
-- `actividad_5_alimentacion`: Ícono 3D de bandeja de catering / Rosa Pálido.
-- `actividad_6_post_produccion`: Ícono 3D de estación de edición / Púrpura.
+### 3.1 El "Extraction Drawer" (Modal IA)
 
----
+- `Layout Asimétrico`: 48% izquierda (Visor PDF + Carrusel Inferior) y 52% derecha (Formulario Inteligente).
+- `Carrusel de Archivos`: Botones azules y pastillas de contador situados estrictamente debajo de la imagen del PDF.
+- `Smart Form`: Grilla de 12 columnas. Ajuste dinámico de campos (Moneda expande a 7 columnas si es Soles; baja de fila y calcula tipo de cambio si es Dólares).
 
-## 4. Componentes de Interacción Avanzada ⚡
+### 3.2 El Grid Nativo (DAFO Table - Próximamente)
 
-### 4.1 El "Extraction Drawer" (Efecto Glassmorphism)
-
-**Ejemplo:**
-> Visualización de la extracción de datos mediante IA sobre un comprobante fiscal PDF.
-
-- `fondo`: backdrop-blur-2xl con `bg-white/10` (en Dark) o `bg-white/70` (en Light).
-- `campos_de_ia`: Los inputs deben tener un estado de "Cargando" animado (Skeleton) mientras Gemini extrae los datos.
-- `validacion_visual`: Lógica de respuesta inmediata según la integridad del dato.
-
-    IF RUC extraído == válido (11 dígitos) -> Borde del input brilla en verde
-    ELSE -> Borde estándar o alerta ámbar
-
-### 4.2 El Grid Nativo (Smart Table)
-
-- `estructura_filas`: En lugar de celdas rígidas, usa filas con bordes redondeados y espacio (gap) entre ellas.
-- `interaccion_hover`: Al pasar el mouse (hover), la fila debe resaltar con el color de acento de la actividad correspondiente.
-
----
-
-## 5. Micro-animaciones y Feedback 🔄
-
-- `transicion_de_tema`: El cambio entre Light y Dark debe durar 0.4s con una curva de transición suave.
-- `efecto_de_carga`: El botón de "Confirmar y Liquidar" debe mostrar un check animado estilo iOS al finalizar con éxito.
-- `ordenamiento_logico`: Comportamiento de las tarjetas durante la re-categorización.
-
-    IF Mover gasto entre categorías -> Tarjeta sigue el cursor con efecto "muelle" (spring physics)
-    ELSE -> Posición estática suave
+- Las celdas deben ser blancas con bordes sutiles.
+- Interacción hover con resaltado pastel del color de la actividad correspondiente.
