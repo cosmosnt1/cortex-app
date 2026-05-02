@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { ScanLine } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import ExtractionDrawer from '../components/features/ExtractionDrawer.jsx';
 import { fetchProjectById, getFirestoreDb } from '../services/firebase.js';
 import { formatBankLastUpdate } from '../utils/dates.js';
 import { formatPen } from '../utils/money.js';
@@ -25,6 +27,25 @@ export default function ProjectWorkspaceView() {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const loadProject = useCallback(async () => {
+    const db = getFirestoreDb();
+    if (!db || !id) return;
+    try {
+      const docSnap = await fetchProjectById(db, id);
+      if (docSnap) {
+        setProject(docSnap);
+        setError(null);
+      } else {
+        setProject(null);
+        setError('no-found');
+      }
+    } catch (err) {
+      console.error('[ProjectWorkspace]', err);
+      setError('load');
+    }
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,13 +58,13 @@ export default function ProjectWorkspaceView() {
         return;
       }
       try {
-        const doc = await fetchProjectById(db, id);
+        const docSnap = await fetchProjectById(db, id);
         if (!cancelled) {
-          if (!doc) {
+          if (!docSnap) {
             setProject(null);
             setError('no-found');
           } else {
-            setProject(doc);
+            setProject(docSnap);
             setError(null);
           }
         }
@@ -145,7 +166,16 @@ export default function ProjectWorkspaceView() {
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:w-[min(100%,28rem)] lg:shrink-0">
+        <div className="flex flex-col gap-3 lg:w-[min(100%,28rem)] lg:shrink-0">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--cortex-accent)] px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-95"
+          >
+            <ScanLine className="h-4 w-4" aria-hidden />
+            Liquidar comprobante
+          </button>
+          <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-3xl border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_55%,transparent)] bg-[color-mix(in_srgb,var(--cortex-bg)_55%,transparent)] px-5 py-4 backdrop-blur-md">
             <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color-mix(in_srgb,var(--cortex-text)_52%,transparent)]">
               Monto total DAFO
@@ -170,8 +200,16 @@ export default function ProjectWorkspaceView() {
                 : 'Última actualización: sin fecha'}
             </p>
           </div>
+          </div>
         </div>
       </div>
+
+      <ExtractionDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        projectId={id}
+        onSaved={() => void loadProject()}
+      />
 
       <section className="rounded-[var(--radius-glass)] border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_50%,transparent)] bg-[color-mix(in_srgb,var(--cortex-bg)_60%,transparent)] p-8 backdrop-blur-xl">
         <h2 className="text-sm font-semibold text-[var(--cortex-text)]">

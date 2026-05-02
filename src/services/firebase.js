@@ -8,10 +8,12 @@ import {
   getDoc,
   getDocs,
   getFirestore,
+  increment,
   limit,
   query,
   serverTimestamp,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 
 /**
@@ -168,4 +170,63 @@ export async function fetchProjectById(db, projectId) {
   const snapshot = await getDoc(ref);
   if (!snapshot.exists()) return null;
   return mapProjectDoc(snapshot);
+}
+
+const TC_CODES = new Set(['01', '02', '03', '-']);
+
+function normalizeExpenseTipoComprobante(value) {
+  const s = String(value ?? '').trim();
+  return TC_CODES.has(s) ? s : '-';
+}
+
+/**
+ * Registra un gasto en `expenses` y suma `montoTotal` a `projects.spentAmount` (atómico).
+ */
+export async function saveExpenseAndIncrementProject(db, projectId, expense) {
+  if (!db || !projectId) throw new Error('Firestore o proyecto no válido');
+  const monto = coerceNumber(expense.montoTotal, NaN);
+  if (!Number.isFinite(monto) || monto <= 0) {
+    throw new Error('El monto total debe ser un número mayor a cero.');
+  }
+
+  const monedaRaw = String(expense.moneda ?? 'PEN').trim().toUpperCase();
+  const moneda = monedaRaw === 'USD' ? 'USD' : 'PEN';
+
+  let tipoCambioFirestore = null;
+  if (moneda === 'USD') {
+    const raw = expense.tipoCambio;
+    const hasValue =
+      raw != null &&
+      String(raw).trim() !== '' &&
+      !(typeof raw === 'number' && !Number.isFinite(raw));
+    if (hasValue) {
+      const tc = coerceNumber(String(raw).trim().replace(',', '.'), NaN);
+      tipoCambioFirestore = Number.isFinite(tc) ? tc : null;
+    }
+  }
+
+  const batch = writeBatch(db);
+  const expenseRef = doc(collection(db, 'expenses'));
+
+  batch.set(expenseRef, {
+    projectId,
+    fecha: String(expense.fecha ?? ''),
+    tipoComprobante: normalizeExpenseTipoComprobante(expense.tipoComprobante),
+    numeroComprobante: String(expense.numeroComprobante ?? '').trim(),
+    proveedor: String(expense.proveedor ?? ''),
+    ruc: String(expense.ruc ?? ''),
+    itemDetalle: String(expense.itemDetalle ?? ''),
+    moneda,
+    tipoCambio: tipoCambioFirestore,
+    montoTotal: monto,
+    createdAt: serverTimestamp(),
+  });
+
+  const projectRef = doc(db, 'projects', projectId);
+  batch.update(projectRef, {
+    spentAmount: increment(monto),
+  });
+
+  await batch.commit();
+  return expenseRef.id;
 }
