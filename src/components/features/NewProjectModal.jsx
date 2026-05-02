@@ -11,6 +11,8 @@ function parseAmountInput(raw) {
 export default function NewProjectModal({ open, onClose, onCreated }) {
   const titleId = useId();
   const [name, setName] = useState('');
+  const [empresa, setEmpresa] = useState('');
+  const [fondoGanado, setFondoGanado] = useState('');
   const [totalBudget, setTotalBudget] = useState('');
   const [spentAmount, setSpentAmount] = useState('0');
   const [bankBalance, setBankBalance] = useState('');
@@ -71,12 +73,16 @@ export default function NewProjectModal({ open, onClose, onCreated }) {
     try {
       await createProject(db, {
         name: trimmedName,
+        empresa,
+        fondoGanado,
         totalBudget: tb,
         spentAmount: Number.isFinite(spent) ? spent : 0,
         bankBalance: bank,
         status: 'active',
       });
       setName('');
+      setEmpresa('');
+      setFondoGanado('');
       setTotalBudget('');
       setSpentAmount('0');
       setBankBalance('');
@@ -130,6 +136,32 @@ export default function NewProjectModal({ open, onClose, onCreated }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej. Documental Costa Norte"
+              autoComplete="off"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-medium uppercase tracking-wide text-[color-mix(in_srgb,var(--cortex-text)_55%,transparent)]">
+              Empresa productora
+            </span>
+            <input
+              className="mt-1.5 w-full rounded-2xl border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_65%,transparent)] bg-[color-mix(in_srgb,var(--cortex-bg)_55%,transparent)] px-4 py-3 text-sm text-[var(--cortex-text)] outline-none ring-[var(--cortex-accent)] transition placeholder:text-[color-mix(in_srgb,var(--cortex-text)_45%,transparent)] focus:ring-2"
+              value={empresa}
+              onChange={(e) => setEmpresa(e.target.value)}
+              placeholder="Ej. Productora Andina SAC"
+              autoComplete="off"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-medium uppercase tracking-wide text-[color-mix(in_srgb,var(--cortex-text)_55%,transparent)]">
+              Fondo/Concurso ganado
+            </span>
+            <input
+              className="mt-1.5 w-full rounded-2xl border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_65%,transparent)] bg-[color-mix(in_srgb,var(--cortex-bg)_55%,transparent)] px-4 py-3 text-sm text-[var(--cortex-text)] outline-none ring-[var(--cortex-accent)] transition placeholder:text-[color-mix(in_srgb,var(--cortex-text)_45%,transparent)] focus:ring-2"
+              value={fondoGanado}
+              onChange={(e) => setFondoGanado(e.target.value)}
+              placeholder="Ej. DAFO 2026 · Postproducción"
               autoComplete="off"
             />
           </label>

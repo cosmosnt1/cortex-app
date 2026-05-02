@@ -1,29 +1,24 @@
 import {
   FileWarning,
   Loader2,
-  ScanLine,
   Upload,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown
 } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { extractInvoiceData, isGeminiConfigured } from '../../services/gemini.js';
-import {
-  getFirestoreDb,
-  saveExpenseAndIncrementProject,
-} from '../../services/firebase.js';
-import { formatAmountByCurrency } from '../../utils/money.js';
+import { getFirestoreDb, saveExpenseAndIncrementProject } from '../../services/firebase.js';
+import { formatAmountByCurrency, formatPen } from '../../utils/money.js';
 import { isValidPeruRuc11 } from '../../utils/ruc.js';
 
 function FieldSkeleton({ className = '' }) {
-  return (
-    <div
-      className={`animate-pulse rounded-2xl bg-[color-mix(in_srgb,var(--cortex-text)_12%,transparent)] ${className}`}
-      aria-hidden
-    />
-  );
+  return <div className={`animate-pulse rounded-2xl bg-slate-200 ${className}`} aria-hidden />;
 }
 
 const initialForm = () => ({
+  actividad: 'Actividad 1 - Crew',
   fecha: '',
   tipoComprobante: '-',
   numeroComprobante: '',
@@ -32,563 +27,643 @@ const initialForm = () => ({
   itemDetalle: '',
   moneda: 'PEN',
   tipoCambio: '',
+  montoUsd: '',
   montoTotal: '',
 });
 
+// CLASES FLEXIBLES: Eliminamos whitespace-nowrap para que los textos largos bajen de línea
 const selectGlassClass =
-  'mt-1.5 w-full rounded-2xl border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_60%,transparent)] bg-[color-mix(in_srgb,var(--cortex-bg)_52%,transparent)] px-4 py-3 text-sm text-[var(--cortex-text)] outline-none ring-[var(--cortex-accent)] focus:ring-2 dark:bg-[color-mix(in_srgb,var(--cortex-bg)_42%,transparent)]';
+  'w-full cursor-pointer appearance-none rounded-xl border border-blue-200 bg-white py-3 pl-4 pr-10 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:shadow-[0_0_15px_rgba(59,130,246,0.15)] break-words whitespace-normal';
 
 const inputGlassClass =
-  'mt-1.5 w-full rounded-2xl border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_60%,transparent)] bg-[color-mix(in_srgb,var(--cortex-bg)_45%,transparent)] px-4 py-3 text-sm text-[var(--cortex-text)] outline-none ring-[var(--cortex-accent)] focus:ring-2 dark:bg-[color-mix(in_srgb,var(--cortex-bg)_38%,transparent)]';
+  'mt-1.5 w-full rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:shadow-[0_0_15px_rgba(59,130,246,0.15)] break-words';
 
-export default function ExtractionDrawer({
-  open,
-  onClose,
-  projectId,
-  onSaved,
-}) {
+export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
   const titleId = useId();
   const inputRef = useRef(null);
-  const [file, setFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [phase, setPhase] = useState('idle');
-  const [form, setForm] = useState(initialForm);
-  const [scanError, setScanError] = useState(null);
-  const [saveError, setSaveError] = useState(null);
+
+  const [showBalance, setShowBalance] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const revokePreview = useCallback(() => {
-    setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
+    documents.forEach((d) => {
+      if (d.previewUrl) URL.revokeObjectURL(d.previewUrl);
     });
-  }, []);
+  }, [documents]);
 
   useEffect(() => {
     if (!open) {
       revokePreview();
-      setFile(null);
-      setPhase('idle');
-      setForm(initialForm());
-      setScanError(null);
-      setSaveError(null);
+      setDocuments([]);
+      setCurrentIndex(0);
+      setIsSaving(false);
     }
   }, [open, revokePreview]);
 
   useEffect(() => {
-    if (!open || !file) return undefined;
-
-    let cancelled = false;
-
-    async function runExtract() {
-      setPhase('extracting');
-      setScanError(null);
-      setSaveError(null);
-      try {
-        const data = await extractInvoiceData(file);
-        if (cancelled) return;
-        setForm({
-          fecha: data.fecha,
-          tipoComprobante: data.tipoComprobante ?? '-',
-          numeroComprobante: data.numeroComprobante ?? '',
-          proveedor: data.proveedor,
-          ruc: data.ruc,
-          itemDetalle: data.itemDetalle,
-          moneda: data.moneda === 'USD' ? 'USD' : 'PEN',
-          tipoCambio:
-            data.moneda === 'USD' &&
-            data.tipoCambio != null &&
-            Number.isFinite(data.tipoCambio)
-              ? String(data.tipoCambio)
-              : '',
-          montoTotal:
-            data.montoTotal != null && Number.isFinite(data.montoTotal)
-              ? String(data.montoTotal)
-              : '',
-        });
-        setPhase('ready');
-      } catch (err) {
-        console.error('[ExtractionDrawer]', err);
-        if (!cancelled) {
-          setScanError(err?.message ?? 'Error al analizar el comprobante.');
-          setPhase('error');
-        }
-      }
-    }
-
-    runExtract();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, file]);
-
-  useEffect(() => {
     if (!open) return;
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
-    };
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  function handlePickFile(next) {
-    if (!next) return;
+  function handlePickFiles(files) {
+    if (!files || files.length === 0) return;
     revokePreview();
-    const url = URL.createObjectURL(next);
-    setPreviewUrl(url);
-    setFile(next);
-    setForm(initialForm());
-    setPhase('idle');
-    setScanError(null);
+    const newDocs = Array.from(files).map((f, i) => ({
+      id: Date.now() + i,
+      file: f,
+      previewUrl: URL.createObjectURL(f),
+      phase: 'idle',
+      form: initialForm(),
+      scanError: null,
+      isSaved: false,
+    }));
+    setDocuments(newDocs);
+    setCurrentIndex(0);
   }
 
-  const isPdf = file?.type === 'application/pdf' || file?.name?.toLowerCase().endsWith('.pdf');
-  const rucInvalidHighlight =
-    form.ruc.length > 0 && !isValidPeruRuc11(form.ruc);
+  useEffect(() => {
+    if (!open || documents.length === 0) return;
+    const currentDoc = documents[currentIndex];
+    if (!currentDoc || currentDoc.phase !== 'idle' || currentDoc.isSaved) return;
 
-  const montoNum = Number(String(form.montoTotal).replace(',', '.'));
+    async function processExtraction() {
+      setDocuments((docs) =>
+        docs.map((d) => (d.id === currentDoc.id ? { ...d, phase: 'extracting', scanError: null } : d))
+      );
+      try {
+        const data = await extractInvoiceData(currentDoc.file);
+        setDocuments((docs) =>
+          docs.map((d) => {
+            if (d.id === currentDoc.id) {
+              return {
+                ...d,
+                phase: 'ready',
+                form: {
+                  ...d.form,
+                  fecha: data.fecha || '',
+                  tipoComprobante: data.tipoComprobante ?? '-',
+                  numeroComprobante: data.numeroComprobante ?? '',
+                  proveedor: data.proveedor || '',
+                  ruc: data.ruc || '',
+                  itemDetalle: data.itemDetalle || '',
+                  moneda: data.moneda === 'USD' ? 'USD' : 'PEN',
+                  tipoCambio: data.moneda === 'USD' && data.tipoCambio ? String(data.tipoCambio) : '',
+                  montoUsd: data.moneda === 'USD' && data.montoTotal ? String(data.montoTotal) : '',
+                  montoTotal: data.moneda !== 'USD' && data.montoTotal ? String(data.montoTotal) : '',
+                },
+              };
+            }
+            return d;
+          })
+        );
+      } catch (err) {
+        console.error('[ExtractionDrawer]', err);
+        setDocuments((docs) =>
+          docs.map((d) => (d.id === currentDoc.id ? { ...d, phase: 'error', scanError: err?.message ?? 'Error al analizar.' } : d))
+        );
+      }
+    }
+    processExtraction();
+  }, [open, documents, currentIndex]);
+
+  const currentDoc = documents[currentIndex] || null;
+  const form = currentDoc?.form || initialForm();
+  const phase = currentDoc?.phase || 'idle';
+  const scanError = currentDoc?.scanError || null;
+  const isSaved = currentDoc?.isSaved || false;
+
+  const updateForm = (updates) => {
+    setDocuments((docs) =>
+      docs.map((d, i) => (i === currentIndex ? { ...d, form: { ...d.form, ...updates } } : d))
+    );
+  };
+
+  const isPdf = currentDoc?.file?.type === 'application/pdf' || currentDoc?.file?.name?.toLowerCase().endsWith('.pdf');
+  const rucInvalidHighlight = form.ruc.length > 0 && !isValidPeruRuc11(form.ruc);
+
   const isUsd = form.moneda === 'USD';
-  const showForm = Boolean(file) && phase !== 'extracting';
-  const formDisabled = !file || phase === 'extracting' || phase === 'saving';
-  const canConfirm =
-    showForm &&
-    phase !== 'saving' &&
-    Number.isFinite(montoNum) &&
-    montoNum > 0 &&
-    isGeminiConfigured();
+  const montoPenInputNum = Number(String(form.montoTotal).replace(',', '.'));
+  const montoUsdNum = Number(String(form.montoUsd).replace(',', '.'));
+  const tipoCambioNum = Number(String(form.tipoCambio).replace(',', '.'));
+  const montoPenCalculatedNum = isUsd && Number.isFinite(montoUsdNum) && Number.isFinite(tipoCambioNum) ? montoUsdNum * tipoCambioNum : NaN;
+  const montoFinalPenNum = isUsd ? montoPenCalculatedNum : montoPenInputNum;
+
+  const showForm = Boolean(currentDoc) && phase !== 'extracting';
+  const formDisabled = !currentDoc || phase === 'extracting' || isSaving || isSaved;
+  const canConfirm = showForm && !isSaving && !isSaved && Number.isFinite(montoFinalPenNum) && montoFinalPenNum > 0 && isGeminiConfigured();
+
+  const projectId = project?.id ?? project?.projectId ?? project?._id ?? project?.uid ?? null;
 
   async function handleConfirm() {
     if (!projectId || !canConfirm) return;
     const db = getFirestoreDb();
-    if (!db) {
-      setSaveError('Firestore no disponible.');
-      return;
-    }
-    setPhase('saving');
-    setSaveError(null);
+    if (!db) return alert('Firestore no disponible.');
+    setIsSaving(true);
     try {
       await saveExpenseAndIncrementProject(db, projectId, {
+        actividad: form.actividad,
         fecha: form.fecha,
         tipoComprobante: form.tipoComprobante,
         numeroComprobante: form.numeroComprobante,
         proveedor: form.proveedor,
         ruc: form.ruc,
         itemDetalle: form.itemDetalle,
-        moneda: form.moneda,
-        tipoCambio: isUsd ? form.tipoCambio.trim() : null,
-        montoTotal: montoNum,
+        moneda: 'PEN',
+        tipoCambio: null,
+        montoTotal: montoFinalPenNum,
       });
+      setDocuments((docs) => docs.map((d, i) => (i === currentIndex ? { ...d, isSaved: true } : d)));
       onSaved?.();
-      onClose?.();
+      if (currentIndex < documents.length - 1) {
+        setCurrentIndex((prev) => prev + 1);
+      }
     } catch (err) {
       console.error('[ExtractionDrawer save]', err);
-      setSaveError(err?.message ?? 'No se pudo guardar el gasto.');
-      setPhase('ready');
+      alert(err?.message ?? 'No se pudo guardar el gasto.');
+    } finally {
+      setIsSaving(false);
     }
   }
 
   if (!open) return null;
-
   const geminiReady = isGeminiConfigured();
 
   return (
-    <div className="fixed inset-0 z-[60] flex justify-end" role="presentation">
+    <div className="fixed inset-0 z-[60]" role="presentation">
       <button
         type="button"
         aria-label="Cerrar panel"
-        className="absolute inset-0 bg-black/45 backdrop-blur-xl transition-opacity"
+        className="fixed inset-0 h-screen w-screen bg-slate-800/40 backdrop-blur-md transition-opacity"
         onClick={() => onClose?.()}
       />
 
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="extraction-drawer-panel relative z-[61] flex h-full max-h-dvh w-full max-w-6xl flex-col overflow-hidden border-l border-[color-mix(in_srgb,var(--cortex-sidebar-border)_55%,transparent)] bg-[color-mix(in_srgb,var(--cortex-bg)_88%,transparent)] shadow-[-24px_0_80px_-20px_rgba(0,0,0,0.35)] backdrop-blur-xl dark:bg-[color-mix(in_srgb,var(--cortex-bg)_92%,transparent)]"
-      >
-        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[color-mix(in_srgb,var(--cortex-sidebar-border)_55%,transparent)] px-5 py-4 md:px-6">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--cortex-accent)_15%,transparent)] text-[var(--cortex-accent)]">
-              <ScanLine className="h-5 w-5" aria-hidden />
-            </span>
-            <div>
-              <h2
-                id={titleId}
-                className="text-lg font-semibold tracking-tight text-[var(--cortex-text)]"
-              >
-                Extracción inteligente
-              </h2>
-              <p className="text-xs text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                Gemini · valida y liquida en un solo paso
+      <div className="fixed inset-0 pointer-events-none flex flex-col items-center justify-center p-4 md:p-8 z-[61]">
+        {/* CONTENEDOR PRINCIPAL EXPANDIDO (max-w-[85rem] ~ 1360px) */}
+        <div className="flex items-center justify-center gap-6 w-full max-w-[85rem] h-full pointer-events-auto">
+          
+          {!geminiReady ? (
+            <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white/90 p-8 text-center backdrop-blur-xl shadow-2xl">
+              <FileWarning className="h-10 w-10 text-amber-500 mx-auto" aria-hidden />
+              <p className="max-w-md text-sm text-slate-500 mt-4 mx-auto">
+                Configura VITE_GEMINI_API_KEY en tu archivo .env y reinicia Vite.
               </p>
             </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onClose?.()}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_70%,transparent)] text-[var(--cortex-text)] transition hover:bg-[color-mix(in_srgb,var(--cortex-text)_8%,transparent)]"
-            aria-label="Cerrar"
-          >
-            <X className="h-5 w-5" aria-hidden />
-          </button>
-        </header>
+          ) : (
+            <>
+              {/* CAJA IZQUIERDA: PREVIEW (48% de ancho para cederle al formulario) */}
+              <section className="flex h-full w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50/95 backdrop-blur-xl shadow-2xl lg:w-[48%]">
+                <p className="shrink-0 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400 md:px-6 border-b border-slate-200">
+                  Vista previa
+                </p>
+                <div
+                  className="relative flex-1 bg-slate-100/50"
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (e.dataTransfer.files) handlePickFiles(e.dataTransfer.files);
+                  }}
+                >
+                  {!currentDoc ? (
+                    <button
+                      type="button"
+                      onClick={() => inputRef.current?.click()}
+                      className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center transition hover:bg-slate-200/50"
+                    >
+                      <Upload className="h-10 w-10 text-blue-500" aria-hidden />
+                      <span className="text-sm font-bold text-slate-700">
+                        Arrastra uno o varios comprobantes
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Procesamiento por lotes (PDF, JPG, PNG)
+                      </span>
+                    </button>
+                  ) : isPdf ? (
+                    <div className="h-full w-full p-4">
+                      <div className="h-full w-full overflow-hidden rounded-2xl border border-slate-300 shadow-inner bg-white">
+                        <iframe 
+                          src={`${currentDoc.previewUrl}#view=FitH&toolbar=0&navpanes=0`} 
+                          className="h-full w-full bg-white" 
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full w-full p-4 flex items-center justify-center overflow-hidden">
+                      <div className="rounded-2xl border border-slate-300 shadow-inner bg-slate-100 overflow-hidden">
+                         <img src={currentDoc.previewUrl} alt="Comprobante" className="max-h-[min(65vh,600px)] w-auto max-w-full object-contain" />
+                      </div>
+                    </div>
+                  )}
+                  <input
+                    ref={inputRef}
+                    type="file"
+                    multiple
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files) handlePickFiles(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
 
-        {!geminiReady ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-            <FileWarning className="h-10 w-10 text-amber-500" aria-hidden />
-            <p className="max-w-md text-sm text-[color-mix(in_srgb,var(--cortex-text)_72%,transparent)]">
-              Configura{' '}
-              <code className="rounded bg-[color-mix(in_srgb,var(--cortex-text)_10%,transparent)] px-1">
-                VITE_GEMINI_API_KEY
-              </code>{' '}
-              en tu archivo{' '}
-              <code className="rounded bg-[color-mix(in_srgb,var(--cortex-text)_10%,transparent)] px-1">
-                .env
-              </code>{' '}
-              y reinicia Vite.
-            </p>
-          </div>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <div className="flex min-h-[220px] flex-1 flex-col border-b border-[color-mix(in_srgb,var(--cortex-sidebar-border)_45%,transparent)] lg:min-h-0 lg:max-w-[52%] lg:border-b-0 lg:border-r">
-              <p className="shrink-0 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color-mix(in_srgb,var(--cortex-text)_52%,transparent)] md:px-6">
-                Vista previa
-              </p>
-              <div
-                className="relative min-h-0 flex-1 bg-[color-mix(in_srgb,var(--cortex-text)_6%,transparent)]"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const f = e.dataTransfer.files?.[0];
-                  if (f) handlePickFile(f);
-                }}
-              >
-                {!file ? (
+                <div className="flex items-center justify-between gap-4 p-5 border-t border-slate-200 bg-white">
                   <button
                     type="button"
                     onClick={() => inputRef.current?.click()}
-                    className="flex h-full min-h-[200px] w-full flex-col items-center justify-center gap-3 p-6 text-center transition hover:bg-[color-mix(in_srgb,var(--cortex-text)_8%,transparent)]"
+                    className="rounded-xl border-2 border-yellow-400 bg-yellow-50 px-5 py-3 text-sm font-bold text-yellow-700 transition hover:bg-yellow-100 shadow-sm"
                   >
-                    <Upload className="h-10 w-10 text-[var(--cortex-accent)]" aria-hidden />
-                    <span className="text-sm font-medium text-[var(--cortex-text)]">
-                      Arrastra un PDF o imagen
-                    </span>
-                    <span className="text-xs text-[color-mix(in_srgb,var(--cortex-text)_55%,transparent)]">
-                      Factura, boleta o nota · JPG, PNG, WEBP o PDF
-                    </span>
+                    Subir nuevos
                   </button>
-                ) : isPdf ? (
-                  <iframe
-                    title="Vista previa PDF"
-                    src={previewUrl ?? ''}
-                    className="h-full min-h-[280px] w-full bg-[var(--cortex-bg)] lg:min-h-0"
-                  />
-                ) : (
-                  <img
-                    src={previewUrl ?? ''}
-                    alt=""
-                    className="mx-auto max-h-[min(55vh,520px)] w-auto max-w-full object-contain p-4"
-                  />
-                )}
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handlePickFile(f);
-                    e.target.value = '';
-                  }}
-                />
-              </div>
-              <div className="flex shrink-0 gap-2 border-t border-[color-mix(in_srgb,var(--cortex-sidebar-border)_45%,transparent)] p-3 md:p-4">
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  className="rounded-2xl border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_65%,transparent)] px-4 py-2.5 text-sm font-semibold text-[var(--cortex-text)] transition hover:bg-[color-mix(in_srgb,var(--cortex-text)_8%,transparent)]"
-                >
-                  Cambiar archivo
-                </button>
-              </div>
-            </div>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:max-w-[48%]">
-              <div className="px-4 py-4 md:px-6 md:py-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color-mix(in_srgb,var(--cortex-text)_52%,transparent)]">
-                  Datos extraídos
-                </p>
-                <p className="mt-1 text-xs text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                  Revisa cada campo antes de confirmar la liquidación.
-                </p>
+                  {documents.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={currentIndex === 0}
+                        onClick={() => setCurrentIndex((c) => c - 1)}
+                        className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md transition hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
 
-                {scanError ? (
-                  <p
-                    className="mt-4 rounded-2xl border border-red-500/35 bg-red-500/10 px-3 py-2 text-sm text-red-950 dark:text-red-100"
-                    role="alert"
-                  >
-                    {scanError}
-                  </p>
-                ) : null}
-
-                {saveError ? (
-                  <p
-                    className="mt-4 rounded-2xl border border-red-500/35 bg-red-500/10 px-3 py-2 text-sm text-red-950 dark:text-red-100"
-                    role="alert"
-                  >
-                    {saveError}
-                  </p>
-                ) : null}
-
-                <div className="mt-6 space-y-4">
-                  {!file ? (
-                    <p className="rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--cortex-sidebar-border)_70%,transparent)] bg-[color-mix(in_srgb,var(--cortex-text)_4%,transparent)] px-4 py-8 text-center text-sm text-[color-mix(in_srgb,var(--cortex-text)_62%,transparent)]">
-                      Selecciona o arrastra un comprobante para que Gemini extraiga
-                      fecha, RUC, montos y detalle.
-                    </p>
-                  ) : null}
-
-                  {phase === 'extracting' ? (
-                    <>
-                      <FieldSkeleton className="h-11 w-full" />
-                      <FieldSkeleton className="h-11 w-full" />
-                      <FieldSkeleton className="h-11 w-full" />
-                      <FieldSkeleton className="h-11 w-full" />
-                      <FieldSkeleton className="h-11 w-full" />
-                      <FieldSkeleton className="h-11 w-full" />
-                      <FieldSkeleton className="h-24 w-full" />
-                      <FieldSkeleton className="h-11 w-full" />
-                      <div className="flex items-center gap-2 text-xs text-[color-mix(in_srgb,var(--cortex-text)_55%,transparent)]">
-                        <Loader2 className="h-4 w-4 animate-spin text-[var(--cortex-accent)]" aria-hidden />
-                        Gemini está leyendo el comprobante…
+                      <div className="flex h-11 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-4 shadow-sm">
+                        <span className="text-xs font-bold uppercase tracking-tight text-blue-700">
+                          {currentIndex + 1} / {documents.length}
+                        </span>
                       </div>
-                    </>
-                  ) : null}
 
-                  {showForm ? (
-                    <>
-                      <label className="block">
-                        <span className="text-xs font-medium text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                          Fecha (YYYY-MM-DD)
-                        </span>
-                        <input
-                          className={inputGlassClass}
-                          value={form.fecha}
-                          onChange={(e) =>
-                            setForm((s) => ({ ...s, fecha: e.target.value }))
-                          }
-                          placeholder="2025-05-01"
-                          disabled={formDisabled}
-                        />
-                      </label>
+                      <button
+                        type="button"
+                        disabled={currentIndex === documents.length - 1}
+                        onClick={() => setCurrentIndex((c) => c + 1)}
+                        className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md transition hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </section>
 
-                      <label className="block">
-                        <span className="text-xs font-medium text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                          TC (tipo de comprobante)
-                        </span>
-                        <select
-                          className={selectGlassClass}
-                          value={form.tipoComprobante}
-                          onChange={(e) =>
-                            setForm((s) => ({
-                              ...s,
-                              tipoComprobante: e.target.value,
-                            }))
-                          }
-                          disabled={formDisabled}
-                        >
-                          <option value="01">01 — Factura / Factura electrónica</option>
-                          <option value="02">
-                            02 — RHE / Recibo por honorarios
-                          </option>
-                          <option value="03">03 — Boleta / Boleta de venta</option>
-                          <option value="-">— Otros / no aplicable</option>
-                        </select>
-                      </label>
+              {/* CAJA DERECHA: FORMULARIO (52% de ancho para respirar) */}
+              <section className="flex h-full w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl shadow-2xl lg:w-[52%]">
+                <header className="shrink-0 p-5 md:p-6 border-b border-slate-200 bg-white/90 backdrop-blur-xl z-20 flex flex-col gap-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 id={titleId} className="text-xl font-bold tracking-tight text-slate-900">
+                        {project?.name || 'Proyecto sin nombre'}
+                      </h2>
+                      <p className="text-xs font-medium text-slate-500 mt-1">
+                        {project?.empresa || 'Empresa no definida'} - {project?.fondoGanado || 'Fondo no definido'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowBalance(!showBalance)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition shadow-sm"
+                      >
+                        <span className="text-base">{showBalance ? '🙈' : '👁️'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onClose?.()}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition shadow-sm text-slate-400"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
 
-                      <label className="block">
-                        <span className="text-xs font-medium text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                          N° de comprobante
-                        </span>
-                        <input
-                          className={inputGlassClass}
-                          value={form.numeroComprobante}
-                          onChange={(e) =>
-                            setForm((s) => ({
-                              ...s,
-                              numeroComprobante: e.target.value,
-                            }))
-                          }
-                          placeholder="F003-00003217"
-                          disabled={formDisabled}
-                          autoComplete="off"
-                        />
-                      </label>
+                  {showBalance && (
+                    <div className="flex items-center gap-3">
+                      <span className="px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-900 text-[11px] font-bold tracking-wide border border-emerald-200 shadow-sm">
+                        Dinero liquidado: {formatPen(project?.spentAmount)}
+                      </span>
+                      <span className="px-3 py-1.5 rounded-lg bg-purple-100 text-purple-900 text-[11px] font-bold tracking-wide border border-purple-200 shadow-sm">
+                        Dinero por liquidar: {formatPen((project?.totalBudget || 0) - (project?.spentAmount || 0))}
+                      </span>
+                    </div>
+                  )}
 
-                      <label className="block">
-                        <span className="text-xs font-medium text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                          Proveedor
-                        </span>
-                        <input
-                          className={inputGlassClass}
-                          value={form.proveedor}
-                          onChange={(e) =>
-                            setForm((s) => ({ ...s, proveedor: e.target.value }))
-                          }
-                          disabled={formDisabled}
-                        />
-                      </label>
+                  <label className="block mt-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider flex items-center text-slate-500 mb-1.5">
+                      <span className="text-[13px] text-black mr-1.5 opacity-100">📁</span>
+                      Actividad a la que pertenece este comprobante
+                    </span>
+                    <div className="relative mt-1.5">
+                      <select
+                        className={selectGlassClass}
+                        value={form.actividad}
+                        disabled={formDisabled}
+                        onChange={(e) => updateForm({ actividad: e.target.value })}
+                      >
+                        <option value="Actividad 1 - Crew">Actividad 1 - Crew</option>
+                        <option value="Actividad 2 - Pre-producción">Actividad 2 - Pre-producción</option>
+                        <option value="Actividad 3 - Rodaje">Actividad 3 - Rodaje</option>
+                        <option value="+ Añadir nueva actividad">+ Añadir nueva actividad</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                    </div>
+                  </label>
+                </header>
 
-                      <label className="block">
-                        <span className="text-xs font-medium text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                          RUC (11 dígitos)
-                        </span>
-                        <input
-                          inputMode="numeric"
-                          className={[
-                            inputGlassClass,
-                            'tabular-nums',
-                            rucInvalidHighlight
-                              ? '!border-amber-500 !ring-amber-500/35 focus:!ring-amber-500/50'
-                              : '',
-                          ].join(' ')}
-                          value={form.ruc}
-                          onChange={(e) =>
-                            setForm((s) => ({
-                              ...s,
-                              ruc: e.target.value.replace(/\D/g, '').slice(0, 11),
-                            }))
-                          }
-                          placeholder="20123456789"
-                          disabled={formDisabled}
-                          aria-invalid={rucInvalidHighlight}
-                        />
-                        {rucInvalidHighlight ? (
-                          <span className="mt-1 block text-[11px] text-amber-600 dark:text-amber-400">
-                            Revisa el RUC: debe tener 11 dígitos.
-                          </span>
-                        ) : null}
-                      </label>
+                <div className="flex-1 overflow-y-auto p-5 md:p-6 bg-slate-50/30">
+                  <div className="mb-6">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                      Datos extraídos
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 font-medium">
+                      Revisa cada campo antes de confirmar la liquidación.
+                    </p>
+                  </div>
 
-                      <label className="block">
-                        <span className="text-xs font-medium text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                          Detalle de gasto
-                        </span>
-                        <textarea
-                          rows={3}
-                          className={`${inputGlassClass} resize-none`}
-                          value={form.itemDetalle}
-                          onChange={(e) =>
-                            setForm((s) => ({
-                              ...s,
-                              itemDetalle: e.target.value,
-                            }))
-                          }
-                          disabled={formDisabled}
-                        />
-                      </label>
+                  {scanError && (
+                    <p className="mb-5 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 shadow-sm break-words">
+                      {scanError}
+                    </p>
+                  )}
 
-                      <label className="block">
-                        <span className="text-xs font-medium text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                          Moneda
-                        </span>
-                        <select
-                          className={selectGlassClass}
-                          value={form.moneda}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            setForm((s) => ({
-                              ...s,
-                              moneda: next,
-                              tipoCambio: next === 'PEN' ? '' : s.tipoCambio,
-                            }));
-                          }}
-                          disabled={formDisabled}
-                        >
-                          <option value="PEN">PEN — Soles (S/)</option>
-                          <option value="USD">USD — Dólares ($)</option>
-                        </select>
-                      </label>
+                  <div className="space-y-4">
+                    {phase === 'extracting' ? (
+                      <div className="space-y-4">
+                        <FieldSkeleton className="h-12 w-full" />
+                        <FieldSkeleton className="h-12 w-full" />
+                        <FieldSkeleton className="h-12 w-full" />
+                        <FieldSkeleton className="h-24 w-full" />
+                        <div className="flex items-center gap-3 justify-center text-xs font-bold text-blue-600 mt-8 bg-blue-50 py-3 rounded-xl border border-blue-100">
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Gemini está analizando el documento...
+                        </div>
+                      </div>
+                    ) : null}
 
-                      {isUsd ? (
-                        <label className="block">
-                          <span className="text-xs font-medium text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                            Tipo de cambio del día
+                    {showForm ? (
+                      // GRILLA MAESTRA DE 12 COLUMNAS PARA CONTROL ABSOLUTO DE ANCHOS
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-12">
+                        
+                        {/* Fila 1 */}
+                        <label className="block sm:col-span-4">
+                          <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                            <span className="text-[13px] text-black mr-1.5 opacity-100">📅</span>
+                            Fecha (YYYY-MM-DD)
                           </span>
                           <input
-                            inputMode="decimal"
                             className={inputGlassClass}
-                            value={form.tipoCambio}
-                            onChange={(e) =>
-                              setForm((s) => ({
-                                ...s,
-                                tipoCambio: e.target.value,
-                              }))
-                            }
-                            placeholder="Ej. 3.75"
+                            value={form.fecha}
+                            onChange={(e) => updateForm({ fecha: e.target.value })}
+                            placeholder="2026-04-17"
                             disabled={formDisabled}
                           />
                         </label>
-                      ) : null}
 
-                      <label className="block">
-                        <span className="text-xs font-medium text-[color-mix(in_srgb,var(--cortex-text)_58%,transparent)]">
-                          Importe total
-                        </span>
-                        <input
-                          inputMode="decimal"
-                          className={`${inputGlassClass} tabular-nums`}
-                          value={form.montoTotal}
-                          onChange={(e) =>
-                            setForm((s) => ({
-                              ...s,
-                              montoTotal: e.target.value,
-                            }))
-                          }
-                          placeholder="0.00"
-                          disabled={formDisabled}
-                        />
-                        {Number.isFinite(montoNum) ? (
-                          <span className="mt-1 block text-[11px] font-medium tabular-nums text-[color-mix(in_srgb,var(--cortex-text)_62%,transparent)]">
-                            {formatAmountByCurrency(montoNum, form.moneda)}
+                        <label className="block relative sm:col-span-8">
+                          <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                            <span className="text-[13px] text-black mr-1.5 opacity-100">🧾</span>
+                            TC (tipo de comprobante)
                           </span>
-                        ) : null}
-                      </label>
-                    </>
-                  ) : null}
-                </div>
+                          <div className="relative mt-1.5 h-full">
+                            <select
+                              className={selectGlassClass}
+                              value={form.tipoComprobante}
+                              onChange={(e) => updateForm({ tipoComprobante: e.target.value })}
+                              disabled={formDisabled}
+                            >
+                              <option value="01">01 — Factura / Factura electrónica</option>
+                              <option value="02">02 — RHE / Recibo por honorarios</option>
+                              <option value="03">03 — Boleta / Boleta de venta</option>
+                              <option value="-">— Otros / no aplicable</option>
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                          </div>
+                        </label>
 
-                <div className="mt-8 flex flex-col-reverse gap-3 pb-6 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => onClose?.()}
-                    className="rounded-2xl border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_65%,transparent)] px-5 py-3 text-sm font-semibold text-[var(--cortex-text)] transition hover:bg-[color-mix(in_srgb,var(--cortex-text)_8%,transparent)]"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canConfirm || phase === 'saving'}
-                    onClick={() => void handleConfirm()}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--cortex-accent)] px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-45"
-                  >
-                    {phase === 'saving' ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                        Guardando…
-                      </>
+                        {/* Fila 2 */}
+                        <label className="block sm:col-span-4">
+                          <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                            <span className="text-[13px] text-black mr-1.5 opacity-100">🔢</span> 
+                            N° comprobante
+                          </span>
+                          <input
+                            className={inputGlassClass}
+                            value={form.numeroComprobante}
+                            onChange={(e) => updateForm({ numeroComprobante: e.target.value })}
+                            placeholder="F003-00003217"
+                            disabled={formDisabled}
+                          />
+                        </label>
+
+                        <label className="block sm:col-span-8">
+                          <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                            <span className="text-[13px] text-black mr-1.5 opacity-100">🏢</span> 
+                            Proveedor
+                          </span>
+                          <input
+                            className={inputGlassClass}
+                            value={form.proveedor}
+                            onChange={(e) => updateForm({ proveedor: e.target.value })}
+                            disabled={formDisabled}
+                          />
+                        </label>
+
+                        {/* Fila 3 */}
+                        <label className="block sm:col-span-5">
+                          <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                            <span className="text-[13px] text-black mr-1.5 opacity-100">🆔</span> 
+                            RUC (11 dígitos)
+                          </span>
+                          <input
+                            inputMode="numeric"
+                            className={`${inputGlassClass} tabular-nums ${rucInvalidHighlight ? '!border-amber-400 !bg-amber-50' : ''}`}
+                            value={form.ruc}
+                            onChange={(e) => updateForm({ ruc: e.target.value.replace(/\D/g, '').slice(0, 11) })}
+                            placeholder="20123456789"
+                            disabled={formDisabled}
+                          />
+                        </label>
+
+                        {/* Fila 4: Detalle ocupa el 100% */}
+                        <label className="block sm:col-span-12">
+                          <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                            <span className="text-[13px] text-black mr-1.5 opacity-100">📝</span> 
+                            Detalle de gasto
+                          </span>
+                          <textarea
+                            rows={3}
+                            className={`${inputGlassClass} resize-none`}
+                            value={form.itemDetalle}
+                            onChange={(e) => updateForm({ itemDetalle: e.target.value })}
+                            disabled={formDisabled}
+                          />
+                        </label>
+
+                        {/* Fila 5: Moneda y Totales dinámicos */}
+                        {isUsd ? (
+                          <>
+                            {/* DÓLARES: 3 cajas arriba, 1 caja grande abajo */}
+                            <label className="block relative sm:col-span-4">
+                              <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                                <span className="text-[13px] text-black mr-1.5 opacity-100">💱</span> 
+                                Moneda
+                              </span>
+                              <div className="relative mt-1.5 h-full">
+                                <select
+                                  className={selectGlassClass}
+                                  value={form.moneda}
+                                  onChange={(e) => {
+                                    const next = e.target.value;
+                                    updateForm({
+                                      moneda: next,
+                                      tipoCambio: next === 'PEN' ? '' : form.tipoCambio,
+                                      montoUsd: next === 'USD' ? form.montoUsd || form.montoTotal : form.montoUsd,
+                                    });
+                                  }}
+                                  disabled={formDisabled}
+                                >
+                                  <option value="PEN">PEN — Soles (S/)</option>
+                                  <option value="USD">USD — Dólares ($)</option>
+                                </select>
+                                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                              </div>
+                            </label>
+
+                            <label className="block sm:col-span-4">
+                              <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                                <span className="text-[13px] text-black mr-1.5 opacity-100">💵</span>
+                                Importe (USD)
+                              </span>
+                              <input
+                                inputMode="decimal"
+                                className={`${inputGlassClass} tabular-nums font-bold`}
+                                value={form.montoUsd}
+                                onChange={(e) => updateForm({ montoUsd: e.target.value })}
+                                placeholder="0.00"
+                                disabled={formDisabled}
+                              />
+                            </label>
+
+                            <label className="block sm:col-span-4">
+                              <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                                <span className="text-[13px] text-black mr-1.5 opacity-100">📈</span> 
+                                Tipo de cambio
+                              </span>
+                              <input
+                                inputMode="decimal"
+                                className={`${inputGlassClass} tabular-nums`}
+                                value={form.tipoCambio}
+                                onChange={(e) => updateForm({ tipoCambio: e.target.value })}
+                                placeholder="Ej. 3.75"
+                                disabled={formDisabled}
+                              />
+                            </label>
+
+                            <label className="block sm:col-span-12">
+                              <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                                <span className="text-[13px] text-black mr-1.5 opacity-100">💰</span>
+                                Importe total (S/) calculado
+                              </span>
+                              <input
+                                inputMode="decimal"
+                                className={`${inputGlassClass} tabular-nums bg-slate-100 text-slate-500 font-bold`}
+                                value={Number.isFinite(montoPenCalculatedNum) ? montoPenCalculatedNum.toFixed(2) : ''}
+                                placeholder="0.00"
+                                disabled
+                                readOnly
+                              />
+                            </label>
+                          </>
+                        ) : (
+                          <>
+                            {/* SOLES: Moneda es ancha (7 col), Importe es corto (5 col) */}
+                            <label className="block relative sm:col-span-7">
+                              <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                                <span className="text-[13px] text-black mr-1.5 opacity-100">💱</span> 
+                                Moneda
+                              </span>
+                              <div className="relative mt-1.5 h-full">
+                                <select
+                                  className={selectGlassClass}
+                                  value={form.moneda}
+                                  onChange={(e) => {
+                                    const next = e.target.value;
+                                    updateForm({
+                                      moneda: next,
+                                      tipoCambio: next === 'PEN' ? '' : form.tipoCambio,
+                                      montoUsd: next === 'USD' ? form.montoUsd || form.montoTotal : form.montoUsd,
+                                    });
+                                  }}
+                                  disabled={formDisabled}
+                                >
+                                  <option value="PEN">PEN — Soles (S/)</option>
+                                  <option value="USD">USD — Dólares ($)</option>
+                                </select>
+                                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                              </div>
+                            </label>
+
+                            <label className="block sm:col-span-5">
+                              <span className="text-xs font-semibold flex items-center text-slate-600 mb-1">
+                                <span className="text-[13px] text-black mr-1.5 opacity-100">💰</span>
+                                Importe total
+                              </span>
+                              <input
+                                inputMode="decimal"
+                                className={`${inputGlassClass} tabular-nums font-bold`}
+                                value={form.montoTotal}
+                                onChange={(e) => updateForm({ montoTotal: e.target.value })}
+                                placeholder="0.00"
+                                disabled={formDisabled}
+                              />
+                            </label>
+                          </>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-10 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => onClose?.()}
+                      className="rounded-xl border border-red-200 bg-red-50 px-6 py-3.5 text-sm font-bold text-red-600 transition hover:bg-red-100 hover:shadow-[0_0_15px_rgba(248,113,113,0.3)]"
+                    >
+                      Cancelar
+                    </button>
+                    
+                    {isSaved ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-100 border border-emerald-300 px-6 py-3.5 text-sm font-bold text-emerald-800 opacity-100"
+                      >
+                        ✅ Comprobante Liquidado
+                      </button>
                     ) : (
-                      'Confirmar liquidación'
+                      <button
+                        type="button"
+                        disabled={!canConfirm}
+                        onClick={() => void handleConfirm()}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg transition hover:bg-blue-500 hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] disabled:opacity-40"
+                      >
+                        {isSaving ? (
+                          <><Loader2 className="h-5 w-5 animate-spin" aria-hidden /> Guardando…</>
+                        ) : (
+                          'Confirmar liquidación'
+                        )}
+                      </button>
                     )}
-                  </button>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </aside>
+              </section>
+
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

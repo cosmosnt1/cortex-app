@@ -207,7 +207,7 @@ export default function ProjectWorkspaceView() {
       <ExtractionDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        projectId={id}
+        project={project}
         onSaved={() => void loadProject()}
       />
 

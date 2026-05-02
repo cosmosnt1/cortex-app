@@ -131,6 +131,8 @@ export function mapProjectDoc(docSnap) {
   return {
     id: docSnap.id,
     name: typeof data.name === 'string' ? data.name : 'Sin nombre',
+    empresa: data.empresa || 'Empresa no definida',
+    fondoGanado: data.fondoGanado || 'Fondo no definido',
     totalBudget,
     spentAmount,
     bankBalance,
@@ -146,6 +148,8 @@ export async function createProject(db, payload) {
   const bankBalance = coerceNumber(payload.bankBalance, 0);
   const docRef = await addDoc(collection(db, 'projects'), {
     name: String(payload.name ?? '').trim() || 'Sin nombre',
+    empresa: String(payload.empresa ?? '').trim(),
+    fondoGanado: String(payload.fondoGanado ?? '').trim(),
     totalBudget,
     spentAmount,
     bankBalance,

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import ThemeSwitch from '../ui/ThemeSwitch.jsx';
 import Sidebar from './Sidebar.jsx';
 
 function MenuIcon({ className }) {
@@ -86,8 +85,6 @@ export default function MainLayout() {
               </p>
             </div>
           </div>
-
-          <ThemeSwitch />
         </header>
 
         <main className="relative flex-1 overflow-auto bg-gradient-to-br from-[var(--cortex-bg)] via-[var(--cortex-main-muted)] to-[var(--cortex-bg)] px-4 py-8 transition-[background] duration-300 md:px-10">

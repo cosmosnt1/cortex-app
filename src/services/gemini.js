@@ -1,7 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const MODEL_ID =
-  import.meta.env.VITE_GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
+const MODEL_ID = import.meta.env.VITE_GEMINI_MODEL?.trim() || 'gemini-1.5-flash-latest';
 
 const TC_ALLOWED = new Set(['01', '02', '03', '-']);
 
