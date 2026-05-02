@@ -1,7 +1,7 @@
 # 🎥 Cortex: Producer OS
 
 El sistema nervioso central para la producción ejecutiva cinematográfica.
-Cortex es una suite modular diseñada para optimizar la gestión administrativa y financiera de proyectos audiovisuales. Este repositorio contiene el MVP: **Cortex Liquidación**, una herramienta inteligente para la automatización de informes económicos según los estándares de Perú.
+Cortex es una suite modular diseñada para optimizar la gestión administrativa y financiera de proyectos audiovisuales. Este repositorio contiene el MVP: **Cortex Liquidación**, una herramienta inteligente para la automatización de informes económicos según los estándares de PR.
 
 ---
 
