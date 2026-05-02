@@ -1,10 +1,3 @@
----
-project: Cortex: Producer OS
-version: 1.0.0
-status: MVP
-target: DAFO (Ministerio de Cultura, Perú)
----
-
 # 🎥 Cortex: Producer OS
 
 El sistema nervioso central para la producción ejecutiva cinematográfica.
