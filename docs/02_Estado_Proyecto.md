@@ -1,53 +1,32 @@
 ---
-project: Cortex (Producer OS)
-status: Phase Definition Completed
-milestone: Control Structure & Data Architecture
-author: Aura Markdown v07
----
 
 # 🧠 Cortex (Producer OS)
 
 ---
-
 ## 🟢 Estado Actual
-El proyecto se encuentra en la transición post-definición, iniciando la fase de construcción técnica.
+Infraestructura base completada (`Vite` + `Tailwind v4` + `Theme Engine`). Iniciando integración de servicios de nube (`Firebase`) y estructura de navegación maestra.
 
 ---
-
 ## ✅ Hitos Completados
-- [x] Definición de `Visión y Alcance` (Spec Driven Development).
-- [x] Estructuración de `requerimientos DAFO` (Perú).
-- [x] Definición de `estética UI` (Glassmorphism / iOS).
+- `Definición de Visión y Alcance`
+- `Estructuración de requerimientos DAFO`
+- `Definición de estética UI (Cloudy-Bento)`
+- `Setup Técnico: Vite 6 + React 19 + Tailwind v4`
+- `Theme Engine: ThemeContext con soporte nativo Mac/Manual y mitigación de FOUC`
+- `Design Tokens: Variables de cristal y radios de 32px implementados en CSS`
 
 ---
-
 ## 🕒 Tareas Pendientes
 
-### Infraestructura Base
-- [ ] Configuración de `entorno React` con `Tailwind` y `Framer Motion`.
-- [ ] Implementación de `Auth con Google` (Whitelist).
+### Infraestructura Base (Hito 1 - Continuación)
+- `Implementación de Firebase SDK (Auth & Firestore)`
+- `AuthScreen.jsx con lógica de Whitelist`
+- `MainLayout + Sidebar (Estilo Cloudyfile con iconos 3D)`
 
-### Frontend - Dashboard
-- [ ] Creación de la `pantalla de Proyectos` (estilo Cards iOS).
-- [ ] Modal de `Nuevo Proyecto`.
-
-### Módulo Liquidación
-- [ ] Desarrollo del `Grid Nativo` (Tabla inteligente).
-- [ ] Sistema de `subida de archivos` (Drag & Drop).
-
-### Integración IA
-- [ ] Conexión con `Gemini API` para lectura de comprobantes.
-
-### Nube
-- [ ] Conexión con `Google Drive API` para almacenamiento jerárquico.
+### Frontend - Dashboard (Hito 2)
+- `Pantalla de Proyectos (Cards iOS)`
+- `Modal de "Nuevo Proyecto"`
 
 ---
-
-## 📝 Notas de la última sesión
-**Ejemplo:**
-> Se decidió eliminar la dependencia directa de Google Sheets para el trabajo diario, usándolo solo como formato de exportación final.
-
-    IF flujo de datos -> Interno (Cortex DB)
-    ELSE -> Exportación (Google Sheets)
-
-El nombre oficial del sistema será `Cortex`.
+## 📝 Notas de la sesión actual
+La transición de tema se fijó en `0.4s`. Se utiliza `localStorage` con la llave `cortex-theme`. La estructura de carpetas en `src/` ya sigue el estándar de la arquitectura definida.

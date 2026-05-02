@@ -1,0 +1,92 @@
+@import 'tailwindcss';
+
+/* Cortex tokens — @docs/04_UI-UX.md */
+@theme {
+  --radius-glass: 32px;
+  --blur-glass: 24px;
+  --color-cortex-bg-light: #f8f9fb;
+  --color-cortex-bg-dark: #0b0e14;
+  --color-cortex-card-light: #ffffff;
+  --color-cortex-card-dark: #161b22;
+  --color-cortex-sidebar-light: #ffffff;
+  --color-cortex-sidebar-dark: #0d1117;
+  --color-cortex-border-light: #e5e7eb;
+  --color-cortex-border-dark: #30363d;
+  --color-cortex-text-light: #1a1d23;
+  --color-cortex-text-dark: #e6edf3;
+  --color-cortex-accent-light: #007aff;
+  --color-cortex-accent-dark: #58a6ff;
+}
+
+@layer base {
+  html {
+    transition:
+      background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html:not(.dark) {
+    color-scheme: light;
+  }
+
+  :root {
+    --cortex-bg: var(--color-cortex-bg-light);
+    --cortex-text: var(--color-cortex-text-light);
+    --cortex-accent: var(--color-cortex-accent-light);
+    --cortex-sidebar-bg: var(--color-cortex-sidebar-light);
+    --cortex-sidebar-border: var(--color-cortex-border-light);
+    --cortex-main-muted: color-mix(
+      in srgb,
+      var(--color-cortex-bg-light) 88%,
+      var(--color-cortex-accent-light) 12%
+    );
+  }
+
+  html.dark {
+    --cortex-bg: var(--color-cortex-bg-dark);
+    --cortex-text: var(--color-cortex-text-dark);
+    --cortex-accent: var(--color-cortex-accent-dark);
+    --cortex-sidebar-bg: var(--color-cortex-sidebar-dark);
+    --cortex-sidebar-border: var(--color-cortex-border-dark);
+    --cortex-main-muted: color-mix(
+      in srgb,
+      var(--color-cortex-bg-dark) 85%,
+      var(--color-cortex-accent-dark) 15%
+    );
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background-color: var(--cortex-bg);
+    color: var(--cortex-text);
+    font-family:
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+}
+
+/* Glass surfaces — @docs/03_Instrucciones_IA.md & 04_UI-UX §4.1 */
+@layer components {
+  .glass-panel-cortex {
+    border-radius: var(--radius-glass);
+    @apply border border-white/20 bg-white/70 shadow-xl backdrop-blur-xl transition-[background-color,box-shadow,border-color] duration-300;
+  }
+
+  html.dark .glass-panel-cortex {
+    @apply border-white/15 bg-white/10 backdrop-blur-2xl;
+  }
+}
