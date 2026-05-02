@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import ThemeSwitch from '../ui/ThemeSwitch.jsx';
 import Sidebar from './Sidebar.jsx';
 
@@ -18,21 +19,51 @@ function MenuIcon({ className }) {
   );
 }
 
-export default function MainLayout({ children }) {
-  const [activeNav, setActiveNav] = useState('home');
+function useHeaderLabels(pathname) {
+  return useMemo(() => {
+    if (pathname.startsWith('/proyecto/')) {
+      return {
+        kicker: 'Proyecto',
+        title: 'Mesa de trabajo',
+      };
+    }
+    if (pathname.startsWith('/dashboard')) {
+      return {
+        kicker: 'Panel',
+        title: 'Dashboard de proyectos',
+      };
+    }
+    if (pathname.startsWith('/analisis')) {
+      return {
+        kicker: 'Insights',
+        title: 'Análisis',
+      };
+    }
+    if (pathname.startsWith('/ajustes')) {
+      return {
+        kicker: 'Cuenta',
+        title: 'Ajustes',
+      };
+    }
+    return {
+      kicker: 'Cortex',
+      title: 'Producer OS',
+    };
+  }, [pathname]);
+}
+
+export default function MainLayout() {
+  const { pathname } = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { kicker, title } = useHeaderLabels(pathname);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   return (
     <div className="flex min-h-dvh bg-[var(--cortex-bg)]">
-      <Sidebar
-        activeId={activeNav}
-        onSelect={(id) => {
-          setActiveNav(id);
-          setMobileMenuOpen(false);
-        }}
-        mobileOpen={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-      />
+      <Sidebar mobileOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
 
       <div className="relative flex min-h-dvh min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[color-mix(in_srgb,var(--cortex-sidebar-border)_65%,transparent)] bg-[color-mix(in_srgb,var(--cortex-bg)_82%,transparent)] px-4 py-3 backdrop-blur-xl transition-[background-color,border-color] duration-300 md:px-8">
@@ -48,10 +79,10 @@ export default function MainLayout({ children }) {
             </button>
             <div className="min-w-0">
               <p className="truncate text-xs font-medium uppercase tracking-[0.18em] text-[color-mix(in_srgb,var(--cortex-text)_55%,transparent)]">
-                Panel
+                {kicker}
               </p>
               <p className="truncate text-sm font-semibold text-[var(--cortex-text)]">
-                Vista general
+                {title}
               </p>
             </div>
           </div>
@@ -61,24 +92,7 @@ export default function MainLayout({ children }) {
 
         <main className="relative flex-1 overflow-auto bg-gradient-to-br from-[var(--cortex-bg)] via-[var(--cortex-main-muted)] to-[var(--cortex-bg)] px-4 py-8 transition-[background] duration-300 md:px-10">
           <div className="mx-auto max-w-6xl">
-            {children ?? (
-              <section className="rounded-[var(--radius-glass)] border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_55%,transparent)] bg-[color-mix(in_srgb,var(--cortex-bg)_70%,transparent)] p-8 shadow-lg backdrop-blur-xl transition-[border-color,background-color] duration-300">
-                <h1 className="text-2xl font-semibold tracking-tight text-[var(--cortex-text)]">
-                  Bienvenido a Cortex
-                </h1>
-                <p className="mt-3 max-w-prose text-sm leading-relaxed text-[color-mix(in_srgb,var(--cortex-text)_72%,transparent)]">
-                  Aquí irá el dashboard de proyectos y el flujo DAFO. Usa la
-                  barra lateral para moverte entre Home, Proyectos, Análisis y
-                  Ajustes.
-                </p>
-                <p className="mt-6 text-xs text-[color-mix(in_srgb,var(--cortex-text)_55%,transparent)]">
-                  Sección activa (demo):{' '}
-                  <span className="font-medium text-[var(--cortex-accent)]">
-                    {activeNav}
-                  </span>
-                </p>
-              </section>
-            )}
+            <Outlet />
           </div>
         </main>
       </div>

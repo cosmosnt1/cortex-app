@@ -1,11 +1,16 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import {
+  Timestamp,
+  addDoc,
   collection,
+  doc,
+  getDoc,
   getDocs,
   getFirestore,
   limit,
   query,
+  serverTimestamp,
   where,
 } from 'firebase/firestore';
 
@@ -90,4 +95,77 @@ export async function isEmailWhitelisted(db, email) {
   );
   const snapshot = await getDocs(q);
   return !snapshot.empty;
+}
+
+function coerceNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function coerceFirestoreDate(value) {
+  if (value == null) return null;
+  if (value instanceof Timestamp) return value.toDate();
+  if (typeof value.toDate === 'function') {
+    try {
+      const d = value.toDate();
+      return d instanceof Date ? d : null;
+    } catch {
+      return null;
+    }
+  }
+  if (value instanceof Date) return value;
+  return null;
+}
+
+/**
+ * Proyecto en Firestore (`projects`).
+ * Campos: name, totalBudget, spentAmount, status, bankBalance, bankLastUpdate.
+ */
+export function mapProjectDoc(docSnap) {
+  const data = docSnap.data();
+  const totalBudget = coerceNumber(data.totalBudget, 0);
+  const spentAmount = coerceNumber(data.spentAmount, 0);
+  const bankBalance = coerceNumber(data.bankBalance, 0);
+  return {
+    id: docSnap.id,
+    name: typeof data.name === 'string' ? data.name : 'Sin nombre',
+    totalBudget,
+    spentAmount,
+    bankBalance,
+    bankLastUpdate: coerceFirestoreDate(data.bankLastUpdate),
+    status: typeof data.status === 'string' ? data.status : 'active',
+  };
+}
+
+export async function createProject(db, payload) {
+  if (!db) throw new Error('Firestore no inicializado');
+  const totalBudget = coerceNumber(payload.totalBudget, 0);
+  const spentAmount = coerceNumber(payload.spentAmount, 0);
+  const bankBalance = coerceNumber(payload.bankBalance, 0);
+  const docRef = await addDoc(collection(db, 'projects'), {
+    name: String(payload.name ?? '').trim() || 'Sin nombre',
+    totalBudget,
+    spentAmount,
+    bankBalance,
+    status:
+      typeof payload.status === 'string' && payload.status.trim()
+        ? payload.status.trim()
+        : 'active',
+    bankLastUpdate: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function fetchProjects(db) {
+  if (!db) return [];
+  const snapshot = await getDocs(collection(db, 'projects'));
+  return snapshot.docs.map((d) => mapProjectDoc(d));
+}
+
+export async function fetchProjectById(db, projectId) {
+  if (!db || !projectId) return null;
+  const ref = doc(db, 'projects', projectId);
+  const snapshot = await getDoc(ref);
+  if (!snapshot.exists()) return null;
+  return mapProjectDoc(snapshot);
 }

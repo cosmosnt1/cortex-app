@@ -1,32 +1,50 @@
 ---
+project: Cortex (Producer OS)
+version: 0.7.0
+status: Hito 2 Advanced
+engine: Vite 6 + Tailwind v4
+---
 
-# 🧠 Cortex (Producer OS)
+# 🧠 ESTADO DEL PROYECTO: Cortex (Producer OS)
 
 ---
 ## 🟢 Estado Actual
-Infraestructura base completada (`Vite` + `Tailwind v4` + `Theme Engine`). Iniciando integración de servicios de nube (`Firebase`) y estructura de navegación maestra.
+
+Hito 2 en progreso avanzado. El Dashboard es ahora 100% dinámico y maneja lógica financiera real (decimales, soles peruanos, y saldos bancarios). El sistema de navegación entre Dashboard y Proyectos está operativo.
+
+    IF dashboard_dinámico == true -> Manejo de decimales (Double)
+    IF moneda == PEN -> Formateo Soles Peruanos
 
 ---
 ## ✅ Hitos Completados
-- `Definición de Visión y Alcance`
-- `Estructuración de requerimientos DAFO`
-- `Definición de estética UI (Cloudy-Bento)`
-- `Setup Técnico: Vite 6 + React 19 + Tailwind v4`
-- `Theme Engine: ThemeContext con soporte nativo Mac/Manual y mitigación de FOUC`
-- `Design Tokens: Variables de cristal y radios de 32px implementados en CSS`
+
+- `Setup & Auth`: Vite 6 + Tailwind v4 + Firebase Auth (Whitelist).
+- `Theme Engine`: Soporte nativo de temas con mitigación de FOUC.
+- `Finanzas Core`: Formateo de moneda PEN, soporte de decimales (Double) y Timestamps de servidor.
+- `Dashboard Dinámico`: Banner de presupuesto total y Cards de proyecto (Folder Style) con barras de progreso de sobrecosto.
+- `Gestión de Datos`: Modal de creación de proyectos conectado a Firestore con serverTimestamp.
 
 ---
-## 🕒 Tareas Pendientes
+## 🕒 Tareas Pendientes (Próximos Pasos)
 
-### Infraestructura Base (Hito 1 - Continuación)
-- `Implementación de Firebase SDK (Auth & Firestore)`
-- `AuthScreen.jsx con lógica de Whitelist`
-- `MainLayout + Sidebar (Estilo Cloudyfile con iconos 3D)`
+### Hito 3: El Cerebro (IA & Extracción) - PRÓXIMO
+- `Configuración de la API de Gemini 1.5 Pro (Vision)`
+- `Diseño del Extraction Drawer` (Panel lateral de cristal para revisión de facturas).
+- `Lógica de mapeo`
 
-### Frontend - Dashboard (Hito 2)
-- `Pantalla de Proyectos (Cards iOS)`
-- `Modal de "Nuevo Proyecto"`
+    PDF / Imagen -> JSON (Fecha, RUC, Monto)
+
+### Hito 4: Los Pulmones (Drive & Almacenamiento)
+- `Integración de Google Drive API`
+- `Nomenclatura automática de archivos al subir`
 
 ---
 ## 📝 Notas de la sesión actual
-La transición de tema se fijó en `0.4s`. Se utiliza `localStorage` con la llave `cortex-theme`. La estructura de carpetas en `src/` ya sigue el estándar de la arquitectura definida.
+
+Se validó que el `ProjectCard` responde correctamente a los sobrecostos (color rojo). El saldo bancario global se calcula correctamente sumando los saldos individuales de cada proyecto.
+
+**Ejemplo:**
+> Visualización de alertas financieras en el dashboard principal cuando un proyecto excede el límite asignado.
+
+    IF gasto_actual > presupuesto_asignado -> ProjectCard(status: "sobrecosto", color: "rojo")
+    FOR EACH proyecto -> SUM(saldo_individual) -> saldo_bancario_global

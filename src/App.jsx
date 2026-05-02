@@ -1,7 +1,16 @@
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+} from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import AuthScreen from './views/AuthScreen.jsx';
+import DashboardView from './views/DashboardView.jsx';
+import PlaceholderView from './views/PlaceholderView.jsx';
+import ProjectWorkspaceView from './views/ProjectWorkspaceView.jsx';
 
 function LoadingSplash() {
   return (
@@ -20,6 +29,39 @@ function LoadingSplash() {
   );
 }
 
+function AuthenticatedRoutes() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<MainLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardView />} />
+          <Route path="proyecto/:id" element={<ProjectWorkspaceView />} />
+          <Route
+            path="analisis"
+            element={
+              <PlaceholderView
+                title="Análisis"
+                description="Aquí conectarás métricas consolidadas de liquidación y DAFO. Esta vista está lista para el siguiente ciclo de Cortex."
+              />
+            }
+          />
+          <Route
+            path="ajustes"
+            element={
+              <PlaceholderView
+                title="Ajustes"
+                description="Preferencias de cuenta y permisos llegarán aquí. Por ahora puedes usar el interruptor de tema en la cabecera y cerrar sesión desde la barra lateral."
+              />
+            }
+          />
+        </Route>
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
 function Gate() {
   const { user, loading } = useAuth();
 
@@ -31,7 +73,7 @@ function Gate() {
     return <AuthScreen />;
   }
 
-  return <MainLayout />;
+  return <AuthenticatedRoutes />;
 }
 
 export default function App() {

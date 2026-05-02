@@ -1,24 +1,34 @@
+import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
 
 const NAV = [
   {
     id: 'home',
     label: 'Home',
+    to: '/dashboard',
+    match: (pathname) => pathname === '/dashboard',
     Icon: IconHome,
   },
   {
     id: 'projects',
     label: 'Proyectos',
+    to: '/dashboard',
+    match: (pathname) => pathname.startsWith('/proyecto/'),
     Icon: IconProjects,
   },
   {
     id: 'analysis',
     label: 'Análisis',
+    to: '/analisis',
+    match: (pathname) => pathname.startsWith('/analisis'),
     Icon: IconAnalysis,
   },
   {
     id: 'settings',
     label: 'Ajustes',
+    to: '/ajustes',
+    match: (pathname) => pathname.startsWith('/ajustes'),
     Icon: IconSettings,
   },
 ];
@@ -93,13 +103,29 @@ function IconSettings({ className }) {
   );
 }
 
-export default function Sidebar({
-  activeId = 'home',
-  onSelect,
-  mobileOpen,
-  onClose,
-}) {
+function IconLogout({ className }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
+  );
+}
+
+export default function Sidebar({ mobileOpen, onClose }) {
   const { theme } = useTheme();
+  const { pathname } = useLocation();
+  const { logout } = useAuth();
 
   return (
     <>
@@ -129,15 +155,12 @@ export default function Sidebar({
           </div>
 
           <nav className="flex flex-1 flex-col gap-2">
-            {NAV.map(({ id, label, Icon }) => {
-              const active = id === activeId;
+            {NAV.map(({ id, label, to, match, Icon }) => {
+              const active = match(pathname);
               return (
-                <button
+                <Link
                   key={id}
-                  type="button"
-                  onClick={() => {
-                    onSelect?.(id);
-                  }}
+                  to={to}
                   className={[
                     'flex items-center gap-3 rounded-[var(--radius-glass)] px-3 py-3 text-left text-sm font-medium transition-[background-color,color,transform] duration-300',
                     active
@@ -156,10 +179,26 @@ export default function Sidebar({
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="truncate">{label}</span>
-                </button>
+                </Link>
               );
             })}
           </nav>
+
+          <div className="mt-4 border-t border-[color-mix(in_srgb,var(--cortex-sidebar-border)_75%,transparent)] pt-4">
+            <button
+              type="button"
+              onClick={() => {
+                void logout();
+                onClose?.();
+              }}
+              className="flex w-full items-center gap-3 rounded-[var(--radius-glass)] px-3 py-3 text-left text-sm font-medium text-[color-mix(in_srgb,var(--cortex-text)_82%,transparent)] transition-[background-color,color] duration-300 hover:bg-[color-mix(in_srgb,var(--cortex-text)_10%,transparent)] hover:text-[var(--cortex-text)]"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[color-mix(in_srgb,var(--cortex-sidebar-border)_72%,transparent)] bg-[color-mix(in_srgb,var(--cortex-text)_5%,transparent)] text-[color-mix(in_srgb,var(--cortex-text)_72%,transparent)]">
+                <IconLogout className="h-5 w-5" />
+              </span>
+              <span className="truncate">Cerrar sesión</span>
+            </button>
+          </div>
 
           <button
             type="button"
