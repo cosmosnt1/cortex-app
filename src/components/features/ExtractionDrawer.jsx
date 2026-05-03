@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { extractInvoiceData, isGeminiConfigured } from '../../services/gemini.js';
 import { getFirestoreDb, saveExpenseAndIncrementProject } from '../../services/firebase.js';
+import { uploadFileToDrive } from '../../services/drive.js'; // <-- NUEVO SERVICIO DE DRIVE
 import { formatAmountByCurrency, formatPen } from '../../utils/money.js';
 import { isValidPeruRuc11 } from '../../utils/ruc.js';
 
@@ -31,7 +32,7 @@ const initialForm = () => ({
   montoTotal: '',
 });
 
-// CLASES FLEXIBLES: Eliminamos whitespace-nowrap para que los textos largos bajen de línea
+// CLASES FLEXIBLES
 const selectGlassClass =
   'w-full cursor-pointer appearance-none rounded-xl border border-blue-200 bg-white py-3 pl-4 pr-10 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:shadow-[0_0_15px_rgba(59,130,246,0.15)] break-words whitespace-normal';
 
@@ -163,7 +164,37 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
     const db = getFirestoreDb();
     if (!db) return alert('Firestore no disponible.');
     setIsSaving(true);
+    
     try {
+      // 1. GENERAR NOMENCLATURA FORZADA
+      // Limpiamos caracteres extraños que puedan romper el sistema de archivos
+      const safeProveedor = (form.proveedor || 'Sin_Proveedor').replace(/[^a-zA-Z0-9 \-_]/g, '').trim();
+      const safeNum = (form.numeroComprobante || 'S-N').replace(/[^a-zA-Z0-9\-_]/g, '');
+      const safeFecha = form.fecha || 'Sin_Fecha';
+      
+      // Intentamos mantener la extensión original (.pdf, .jpg, etc.)
+      const originalName = currentDoc.file.name || '';
+      const extMatch = originalName.match(/\.([a-z0-9]+)$/i);
+      const ext = extMatch ? extMatch[1] : 'pdf';
+      
+      const forcedFileName = `${safeFecha} - ${safeProveedor} - ${safeNum}.${ext}`;
+
+      // 2. SUBIR A GOOGLE DRIVE
+      const token = localStorage.getItem('cortex_google_token');
+      let driveUrl = null;
+      
+      if (token && currentDoc && currentDoc.file) {
+        try {
+          driveUrl = await uploadFileToDrive(currentDoc.file, forcedFileName, token);
+        } catch (driveErr) {
+          console.error('[Drive Upload Error]', driveErr);
+          alert('Hubo un problema subiendo a Drive, pero se guardará el registro en la base de datos.');
+        }
+      } else {
+        console.warn("No hay token de Drive o archivo físico. Guardando solo en Firestore.");
+      }
+
+      // 3. GUARDAR EN FIRESTORE (pasando la nueva driveUrl)
       await saveExpenseAndIncrementProject(db, projectId, {
         actividad: form.actividad,
         fecha: form.fecha,
@@ -172,12 +203,15 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
         proveedor: form.proveedor,
         ruc: form.ruc,
         itemDetalle: form.itemDetalle,
-        moneda: 'PEN',
+        moneda: 'PEN', // Mantenemos PEN porque el backend consolida en soles
         tipoCambio: null,
         montoTotal: montoFinalPenNum,
-      });
+      }, driveUrl);
+
+      // 4. MARCAR COMO COMPLETADO Y AVANZAR
       setDocuments((docs) => docs.map((d, i) => (i === currentIndex ? { ...d, isSaved: true } : d)));
       onSaved?.();
+      
       if (currentIndex < documents.length - 1) {
         setCurrentIndex((prev) => prev + 1);
       }
@@ -403,7 +437,6 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
                     ) : null}
 
                     {showForm ? (
-                      // GRILLA MAESTRA DE 12 COLUMNAS PARA CONTROL ABSOLUTO DE ANCHOS
                       <div className="grid grid-cols-1 gap-5 sm:grid-cols-12">
                         
                         {/* Fila 1 */}

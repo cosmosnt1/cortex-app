@@ -27,6 +27,9 @@ export function AuthProvider({ children }) {
   /** @type {null | 'denied' | 'signin_failed' | 'config'} */
   const [authError, setAuthError] = useState(null);
   const [driveAccess, setDriveAccess] = useState(false);
+  
+  // 1. NUEVO: Estado para mantener el token de Google en memoria
+  const [googleToken, setGoogleToken] = useState(null); 
 
   useEffect(() => {
     if (!isFirebaseConfigured()) {
@@ -47,6 +50,7 @@ export function AuthProvider({ children }) {
       if (!firebaseUser) {
         setUser(null);
         setDriveAccess(false);
+        setGoogleToken(null); // Limpieza de token
         setLoading(false);
         return;
       }
@@ -61,17 +65,19 @@ export function AuthProvider({ children }) {
           await signOut(auth);
           setUser(null);
           setDriveAccess(false);
+          setGoogleToken(null); // Limpieza de token
           return;
         }
 
         setUser(firebaseUser);
-        setDriveAccess(false);
+        // Nota: driveAccess ahora lo setearemos principalmente al hacer login con popup
       } catch (err) {
         console.error('[Auth]', err);
         setAuthError('signin_failed');
         await signOut(auth).catch(() => {});
         setUser(null);
         setDriveAccess(false);
+        setGoogleToken(null);
       } finally {
         setLoading(false);
       }
@@ -96,7 +102,19 @@ export function AuthProvider({ children }) {
     setLoading(true);
 
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
+      // 2. NUEVO: Configuramos el Provider para pedir permisos de Drive
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/drive.file');
+      
+      const result = await signInWithPopup(auth, provider);
+      
+      // 3. NUEVO: Capturamos el Token de Google para usarlo en la API de Drive
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential) {
+        localStorage.setItem('cortex_google_token', credential.accessToken);
+        setGoogleToken(credential.accessToken);
+        setDriveAccess(true);
+      }
     } catch (err) {
       if (err?.code === 'auth/popup-closed-by-user') {
         setLoading(false);
@@ -112,6 +130,12 @@ export function AuthProvider({ children }) {
     const auth = getAuthInstance();
     if (!auth) return;
     setAuthError(null);
+    
+    // 4. NUEVO: Limpiamos la sesión de Google Drive al salir
+    localStorage.removeItem('cortex_google_token'); 
+    setGoogleToken(null);
+    setDriveAccess(false);
+    
     await signOut(auth);
   }, []);
 
@@ -121,11 +145,12 @@ export function AuthProvider({ children }) {
       loading,
       authError,
       driveAccess,
+      googleToken, // 5. NUEVO: Lo exponemos en el contexto
       firebaseConfigured: isFirebaseConfigured(),
       signInWithGoogle,
       logout,
     }),
-    [user, loading, authError, driveAccess, signInWithGoogle, logout],
+    [user, loading, authError, driveAccess, googleToken, signInWithGoogle, logout],
   );
 
   return (

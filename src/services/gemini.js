@@ -1,6 +1,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const MODEL_ID = import.meta.env.VITE_GEMINI_MODEL?.trim() || 'gemini-1.5-flash-latest';
+const DEFAULT_MODEL_ID = 'gemini-2.5-flash';
+
+function resolveGeminiModelId() {
+  const raw = import.meta.env.VITE_GEMINI_MODEL;
+  const model = typeof raw === 'string' ? raw.trim() : '';
+  return model || DEFAULT_MODEL_ID;
+}
+
+const MODEL_ID = resolveGeminiModelId();
 
 const TC_ALLOWED = new Set(['01', '02', '03', '-']);
 
@@ -45,7 +53,7 @@ export function isGeminiConfigured() {
 }
 
 function stripJsonFence(text) {
-  let t = text.trim();
+  let t = String(text ?? '').trim();
   if (t.startsWith('```')) {
     t = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
   }
@@ -67,21 +75,27 @@ export function normalizeInvoiceExtraction(raw) {
   if (!raw || typeof raw !== 'object') {
     return emptyExtraction();
   }
+
   const fecha =
     typeof raw.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.fecha.trim())
       ? raw.fecha.trim()
       : '';
+
   const tipoComprobante = normalizeTipoComprobante(raw.tipoComprobante);
+
   const numeroComprobante =
     typeof raw.numeroComprobante === 'string'
       ? raw.numeroComprobante.trim()
       : '';
+
   const proveedor =
     typeof raw.proveedor === 'string' ? raw.proveedor.trim() : '';
+
   let ruc = '';
   if (raw.ruc != null) {
     ruc = String(raw.ruc).replace(/\D/g, '').slice(0, 11);
   }
+
   const itemDetalle =
     typeof raw.itemDetalle === 'string' ? raw.itemDetalle.trim() : '';
 
@@ -128,6 +142,7 @@ function emptyExtraction() {
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+
     reader.onload = () => {
       const result = reader.result;
       if (typeof result !== 'string') {
@@ -138,6 +153,7 @@ function readFileAsBase64(file) {
       const base64 = comma >= 0 ? result.slice(comma + 1) : result;
       resolve(base64);
     };
+
     reader.onerror = () => reject(reader.error ?? new Error('Lectura abortada.'));
     reader.readAsDataURL(file);
   });
@@ -146,6 +162,7 @@ function readFileAsBase64(file) {
 function mimeForFile(file) {
   const t = file.type?.trim();
   if (t && t !== 'application/octet-stream') return t;
+
   const name = file.name.toLowerCase();
   if (name.endsWith('.pdf')) return 'application/pdf';
   if (name.endsWith('.png')) return 'image/png';
@@ -157,7 +174,7 @@ function mimeForFile(file) {
 /**
  * Extrae datos estructurados de un PDF o imagen de comprobante.
  * @param {File} file
- * @returns {Promise<ReturnType<normalizeInvoiceExtraction>>}
+ * @returns {Promise<ReturnType<typeof normalizeInvoiceExtraction>>}
  */
 export async function extractInvoiceData(file) {
   if (!isGeminiConfigured()) {
@@ -168,6 +185,9 @@ export async function extractInvoiceData(file) {
 
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const genAI = new GoogleGenerativeAI(apiKey);
+
+  console.info('[Gemini] Modelo seleccionado:', MODEL_ID);
+
   const model = genAI.getGenerativeModel({
     model: MODEL_ID,
     generationConfig: {
@@ -213,6 +233,7 @@ export async function extractInvoiceData(file) {
 
   const response = result.response;
   const text = response.text();
+
   let parsed;
   try {
     parsed = JSON.parse(stripJsonFence(text));

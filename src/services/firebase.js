@@ -185,8 +185,9 @@ function normalizeExpenseTipoComprobante(value) {
 
 /**
  * Registra un gasto en `expenses` y suma `montoTotal` a `projects.spentAmount` (atómico).
+ * NUEVO: Añadimos driveUrl por defecto a null para no romper llamadas anteriores si las hubiera.
  */
-export async function saveExpenseAndIncrementProject(db, projectId, expense) {
+export async function saveExpenseAndIncrementProject(db, projectId, expense, driveUrl = null) {
   if (!db || !projectId) throw new Error('Firestore o proyecto no válido');
   const monto = coerceNumber(expense.montoTotal, NaN);
   if (!Number.isFinite(monto) || monto <= 0) {
@@ -223,6 +224,7 @@ export async function saveExpenseAndIncrementProject(db, projectId, expense) {
     moneda,
     tipoCambio: tipoCambioFirestore,
     montoTotal: monto,
+    drive_url: driveUrl, // <--- GUARDAMOS LA URL DE DRIVE AQUÍ
     createdAt: serverTimestamp(),
   });
 
