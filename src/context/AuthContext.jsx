@@ -9,7 +9,7 @@ import {
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithPopup, // <-- VOLVEMOS AL POPUP
   signOut,
 } from 'firebase/auth';
 import {
@@ -24,12 +24,11 @@ const AuthContext = createContext(undefined);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  /** @type {null | 'denied' | 'signin_failed' | 'config'} */
   const [authError, setAuthError] = useState(null);
-  const [driveAccess, setDriveAccess] = useState(false);
   
-  // 1. NUEVO: Estado para mantener el token de Google en memoria
-  const [googleToken, setGoogleToken] = useState(null); 
+  // Mantenemos la mejora del localStorage para no perder el token al recargar
+  const [googleToken, setGoogleToken] = useState(() => localStorage.getItem('cortex_google_token')); 
+  const [driveAccess, setDriveAccess] = useState(() => !!localStorage.getItem('cortex_google_token'));
 
   useEffect(() => {
     if (!isFirebaseConfigured()) {
@@ -40,17 +39,14 @@ export function AuthProvider({ children }) {
 
     const auth = getAuthInstance();
     const db = getFirestoreDb();
-    if (!auth || !db) {
-      setAuthError('config');
-      setLoading(false);
-      return;
-    }
+    if (!auth || !db) return;
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         setUser(null);
         setDriveAccess(false);
-        setGoogleToken(null); // Limpieza de token
+        setGoogleToken(null);
+        localStorage.removeItem('cortex_google_token');
         setLoading(false);
         return;
       }
@@ -65,19 +61,16 @@ export function AuthProvider({ children }) {
           await signOut(auth);
           setUser(null);
           setDriveAccess(false);
-          setGoogleToken(null); // Limpieza de token
+          setGoogleToken(null);
+          localStorage.removeItem('cortex_google_token');
           return;
         }
 
         setUser(firebaseUser);
-        // Nota: driveAccess ahora lo setearemos principalmente al hacer login con popup
       } catch (err) {
         console.error('[Auth]', err);
         setAuthError('signin_failed');
         await signOut(auth).catch(() => {});
-        setUser(null);
-        setDriveAccess(false);
-        setGoogleToken(null);
       } finally {
         setLoading(false);
       }
@@ -93,24 +86,21 @@ export function AuthProvider({ children }) {
     }
 
     const auth = getAuthInstance();
-    if (!auth) {
-      setAuthError('config');
-      return;
-    }
+    if (!auth) return;
 
     setAuthError(null);
     setLoading(true);
 
     try {
-      // 2. NUEVO: Configuramos el Provider para pedir permisos de Drive
       const provider = new GoogleAuthProvider();
+      // Pedimos permiso para subir archivos a Google Drive
       provider.addScope('https://www.googleapis.com/auth/drive.file');
       
+      // AHORA SÍ FUNCIONARÁ EL POPUP porque arreglaste vite.config.js
       const result = await signInWithPopup(auth, provider);
       
-      // 3. NUEVO: Capturamos el Token de Google para usarlo en la API de Drive
       const credential = GoogleAuthProvider.credentialFromResult(result);
-      if (credential) {
+      if (credential && credential.accessToken) {
         localStorage.setItem('cortex_google_token', credential.accessToken);
         setGoogleToken(credential.accessToken);
         setDriveAccess(true);
@@ -131,7 +121,6 @@ export function AuthProvider({ children }) {
     if (!auth) return;
     setAuthError(null);
     
-    // 4. NUEVO: Limpiamos la sesión de Google Drive al salir
     localStorage.removeItem('cortex_google_token'); 
     setGoogleToken(null);
     setDriveAccess(false);
@@ -141,14 +130,9 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      user,
-      loading,
-      authError,
-      driveAccess,
-      googleToken, // 5. NUEVO: Lo exponemos en el contexto
+      user, loading, authError, driveAccess, googleToken,
       firebaseConfigured: isFirebaseConfigured(),
-      signInWithGoogle,
-      logout,
+      signInWithGoogle, logout,
     }),
     [user, loading, authError, driveAccess, googleToken, signInWithGoogle, logout],
   );

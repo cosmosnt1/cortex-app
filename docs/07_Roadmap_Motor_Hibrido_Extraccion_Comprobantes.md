@@ -30,16 +30,16 @@ Separar completamente la lógica de extracción del frontend y de Gemini.
 
 ### 📦 Entregables:
 
-- `[ ]` Crear estructura modular dentro de `src/`:
+- `[x]` Crear estructura modular dentro de `src/`:
   - `engine/`
   - `memory/`
   - `pipeline/`
   - `services/ocr.js`
   - `services/pdf.js`
 
-- `[ ]` Crear `processDocument(file)` como punto único de entrada
-- `[ ]` Reemplazar llamadas directas a Gemini por el pipeline
-- `[ ]` Logging básico del flujo (debug)
+- `[x]` Crear `processDocument(file)` como punto único de entrada
+- `[x]` Reemplazar llamadas directas a Gemini por el pipeline
+- `[x]` Logging básico del flujo (debug)
 
 ### 🧠 Resultado:
 Cortex deja de depender directamente de Gemini.
@@ -53,10 +53,11 @@ Leer correctamente cualquier comprobante (digital o escaneado)
 
 ### 📦 Entregables:
 
-- `[ ]` Implementar extracción de texto para PDFs digitales
-- `[ ]` Integrar OCR para PDFs escaneados e imágenes
-- `[ ]` Normalizar texto (limpieza básica)
-- `[ ]` Detectar tipo de archivo automáticamente
+- `[x]` Implementar extracción de texto para PDFs digitales
+- `[x]` Integrar OCR local (Tesseract) para imágenes
+- `[x]` **NUEVO:** Puente PDF-to-Image dinámico para PDFs escaneados sin capa de texto.
+- `[x]` Normalizar texto (limpieza básica)
+- `[x]` Detectar tipo de archivo automáticamente
 
 ### 🧠 Resultado:
 Ya tienes el **input real** del sistema (texto confiable).
@@ -70,21 +71,16 @@ Extraer datos clave usando reglas y regex
 
 ### 📦 Entregables:
 
-- `[ ]` Detectar tipo de comprobante:
-  - Factura → 01
-  - Boleta → 03
-  - RHE → 02
-
-- `[ ]` Extraer:
+- `[x]` Detectar tipo de comprobante (Factura: 01, Boleta: 03, RHE: 02)
+- `[x]` Extraer:
   - RUC (11 dígitos)
-  - Razón social (SAC, EIRL, SA)
+  - Razón social (SAC, EIRL, SA) con formateo `Title Case`
   - Número de comprobante
-  - Fecha
+  - Fecha (Soporte flexible para 1 o 2 dígitos)
   - Moneda (PEN / USD)
-  - Monto total
-
-- `[ ]` Crear `normalizeInvoiceData()`
-- `[ ]` Validaciones básicas (números, formatos)
+  - Monto total (Extracción inteligente de máximos absolutos)
+- `[x]` **NUEVO:** Cazador de Items inteligente (Limpieza de cantidades y precios).
+- `[x]` **NUEVO:** Filtro Antibazofia / Anti-Falsos Positivos (Ignorar 'Neptuno Films', evitar atrapar 'impreSA').
 
 ### 🧠 Resultado:
 Sistema funcional sin IA para la mayoría de casos.
@@ -98,14 +94,14 @@ Saber cuándo confiar en el resultado
 
 ### 📦 Entregables:
 
-- `[ ]` Sistema de puntuación:
+- `[x]` Sistema de puntuación:
   - RUC detectado
   - Total detectado
   - Tipo detectado
   - Formato válido
   - Coincidencias con memoria
 
-- `[ ]` Definir umbral:
+- `[x]` Definir umbral:
   - `confidence >= 0.7` → válido
   - `< 0.7` → fallback
 
@@ -121,22 +117,13 @@ Que el sistema mejore con cada comprobante
 
 ### 📦 Entregables:
 
-- `[ ]` Guardar resultados en `localStorage` (fase inicial)
-- `[ ]` Crear estructura de proveedor:
-  - RUC
-  - nombre
-  - patrones
-  - regex útiles
-
-- `[ ]` Implementar matcher:
-  - por RUC
-  - por similitud de texto
-
-- `[ ]` Reutilizar patrones en nuevos documentos
-- `[ ]` Guardar correcciones manuales
+- `[x]` Guardar resultados en `localStorage` (fase inicial)
+- `[x]` Crear estructura de proveedor: (RUC = Nombre)
+- `[x]` Implementar matcher: Rescate de nombres mediante reconocimiento de RUC.
+- `[x]` **NUEVO:** Flujo "Human-in-the-loop": El guardado en memoria solo se detona tras la corrección y confirmación manual del usuario.
 
 ### 🧠 Resultado:
-Sistema que “aprende” sin entrenar modelos complejos.
+Sistema que “aprende” progresivamente sin entrenar modelos complejos.
 
 ---
 
@@ -147,23 +134,13 @@ Usar Gemini solo cuando realmente se necesita
 
 ### 📦 Entregables:
 
-- `[ ]` Integrar fallback a Gemini solo si:
-  - baja confianza
-  - campos faltantes
-
-- `[ ]` Manejo de errores:
-  - quota exceeded
-  - retry controlado
-
-- `[ ]` Logging:
-  - cuándo se usa IA
-  - por qué se usó
-
-- `[ ]` Optimización de consumo:
-  - evitar llamadas duplicadas
+- `[x]` Integrar fallback a Gemini solo si hay baja confianza.
+- `[x]` Hacer merge priorizando el motor o Gemini según disponibilidad.
+- `[x]` Logging en consola (cuándo se usa IA, cuándo se ahorra dinero 💸).
+- `[x]` Filtro de falsos positivos aplicado también al fallback de la IA.
 
 ### 🧠 Resultado:
-IA optimizada → menor costo → mayor control
+IA optimizada → menor costo → mayor control.
 
 ---
 
@@ -174,36 +151,31 @@ Convertir el motor en experiencia usable
 
 ### 📦 Entregables:
 
-- `[ ]` Reemplazar flujo actual por pipeline
-- `[ ]` Mostrar estado:
-  - procesando
-  - OCR
-  - parsing
-  - fallback IA
-
-- `[ ]` Mostrar resultado editable
-- `[ ]` Permitir correcciones manuales
-- `[ ]` Guardar cambios para aprendizaje
+- `[x]` Reemplazar flujo actual por pipeline en `ExtractionDrawer.jsx`.
+- `[x]` Mostrar estado (loaders para procesamiento de OCR y PDF).
+- `[x]` Mostrar resultado editable de forma instantánea.
+- `[x]` Permitir correcciones manuales en el Drawer.
+- `[x]` Guardar cambios para aprendizaje al confirmar.
 
 ### 🧠 Resultado:
 UX sólida y lista para uso real.
 
 ---
 
-# 📂 FASE 8 — Integración con Google Drive
+# 📂 FASE 8 — Integración con Google Drive (⏳ EN PROCESO)
 
 ### 🎯 Objetivo:
 Automatizar almacenamiento de comprobantes
 
 ### 📦 Entregables:
 
-- `[ ]` Subida automática a Drive
-- `[ ]` Renombrado:
-  `[Fecha] - [Proveedor] - [Comprobante].pdf`
-- `[ ]` Guardar `drive_url` en Firestore
+- `[ ]` Configuración de GCP (Habilitar Drive API y Scopes OAuth).
+- `[ ]` Subida automática a Drive.
+- `[ ]` Renombrado forzado: `[Fecha] - [Proveedor] - [Comprobante].pdf`
+- `[ ]` Guardar `drive_url` en Firestore.
 
 ### 🧠 Resultado:
-Sistema completo de gestión documental.
+Sistema completo de gestión documental en la nube.
 
 ---
 
@@ -215,13 +187,8 @@ Probar con volumen real (~800 comprobantes)
 ### 📦 Entregables:
 
 - `[ ]` Lote de pruebas reales
-- `[ ]` Medición de:
-  - precisión
-  - errores
-  - casos fallidos
-
-- `[ ]` Ajuste de reglas
-- `[ ]` Ajuste de memoria
+- `[ ]` Medición de precisión y casos fallidos
+- `[ ]` Ajuste final de reglas y memoria
 
 ### 🧠 Resultado:
 Sistema confiable en producción.
@@ -235,11 +202,10 @@ Escalar Cortex como producto
 
 ### 📦 Entregables:
 
-- `[ ]` Migrar memoria a backend
-- `[ ]` Multiusuario
-- `[ ]` Historial por proyecto
-- `[ ]` Exportación (Excel / CSV / DAFO-ready)
-- `[ ]` Panel de revisión de documentos
+- `[ ]` Migrar memoria (`localStorage`) a Backend (Firestore).
+- `[ ]` Multiusuario e Historial por proyecto.
+- `[ ]` Exportación (Excel / CSV / DAFO-ready).
+- `[ ]` Panel de revisión de documentos.
 
 ### 🧠 Resultado:
 Producto vendible.
@@ -249,25 +215,3 @@ Producto vendible.
 # 💡 PRINCIPIO RECTOR
 
 > “La IA no es el motor. Es el respaldo.”
-
----
-
-# 🎯 RESULTADO FINAL ESPERADO
-
-Un sistema que:
-
-- Procesa comprobantes automáticamente
-- Aprende con el uso
-- Reduce costos de IA
-- Escala a SaaS
-- Se integra naturalmente con Cortex
-
----
-
-# 🧠 NOTA FINAL
-
-Este roadmap está diseñado para:
-
-- avanzar rápido (vibe coding)
-- evitar sobreingeniería
-- construir valor real desde el inicio

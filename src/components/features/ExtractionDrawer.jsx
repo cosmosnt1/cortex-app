@@ -8,9 +8,13 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { extractInvoiceData, isGeminiConfigured } from '../../services/gemini.js';
+
+import { isGeminiConfigured } from '../../services/gemini.js';
+import { processDocument } from '../../pipeline/processDocument.js';
+import { saveToMemory } from '../../memory/storage.js'; 
+
 import { getFirestoreDb, saveExpenseAndIncrementProject } from '../../services/firebase.js';
-import { uploadFileToDrive } from '../../services/drive.js'; // <-- NUEVO SERVICIO DE DRIVE
+import { uploadFileToDrive } from '../../services/drive.js'; 
 import { formatAmountByCurrency, formatPen } from '../../utils/money.js';
 import { isValidPeruRuc11 } from '../../utils/ruc.js';
 
@@ -48,11 +52,16 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
   const [documents, setDocuments] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  const docsRef = useRef(documents);
+  useEffect(() => {
+    docsRef.current = documents;
+  }, [documents]);
+
   const revokePreview = useCallback(() => {
-    documents.forEach((d) => {
+    docsRef.current.forEach((d) => {
       if (d.previewUrl) URL.revokeObjectURL(d.previewUrl);
     });
-  }, [documents]);
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -72,7 +81,9 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
 
   function handlePickFiles(files) {
     if (!files || files.length === 0) return;
+    
     revokePreview();
+
     const newDocs = Array.from(files).map((f, i) => ({
       id: Date.now() + i,
       file: f,
@@ -86,20 +97,26 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
     setCurrentIndex(0);
   }
 
+  // 3. EFECTO DE PROCESAMIENTO (¡Ahora sí con 'documents' en las dependencias!)
   useEffect(() => {
     if (!open || documents.length === 0) return;
-    const currentDoc = documents[currentIndex];
+    
+    const docIndex = currentIndex;
+    const currentDoc = documents[docIndex];
+    
     if (!currentDoc || currentDoc.phase !== 'idle' || currentDoc.isSaved) return;
 
-    async function processExtraction() {
+    async function processExtraction(docId, file) {
       setDocuments((docs) =>
-        docs.map((d) => (d.id === currentDoc.id ? { ...d, phase: 'extracting', scanError: null } : d))
+        docs.map((d) => (d.id === docId ? { ...d, phase: 'extracting', scanError: null } : d))
       );
+      
       try {
-        const data = await extractInvoiceData(currentDoc.file);
-        setDocuments((docs) =>
-          docs.map((d) => {
-            if (d.id === currentDoc.id) {
+        const data = await processDocument(file);
+        
+        setDocuments((prevDocs) =>
+          prevDocs.map((d) => {
+            if (d.id === docId) {
               return {
                 ...d,
                 phase: 'ready',
@@ -123,12 +140,15 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
         );
       } catch (err) {
         console.error('[ExtractionDrawer]', err);
-        setDocuments((docs) =>
-          docs.map((d) => (d.id === currentDoc.id ? { ...d, phase: 'error', scanError: err?.message ?? 'Error al analizar.' } : d))
+        setDocuments((prevDocs) =>
+          prevDocs.map((d) => (d.id === docId ? { ...d, phase: 'error', scanError: err?.message ?? 'Error al analizar.' } : d))
         );
       }
     }
-    processExtraction();
+    
+    processExtraction(currentDoc.id, currentDoc.file);
+
+  // 🔥 ¡AQUÍ ESTÁ LA SOLUCIÓN! Añadimos 'documents' de vuelta a la lista
   }, [open, documents, currentIndex]);
 
   const currentDoc = documents[currentIndex] || null;
@@ -167,17 +187,18 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
     
     try {
       // 1. GENERAR NOMENCLATURA FORZADA
-      // Limpiamos caracteres extraños que puedan romper el sistema de archivos
       const safeProveedor = (form.proveedor || 'Sin_Proveedor').replace(/[^a-zA-Z0-9 \-_]/g, '').trim();
       const safeNum = (form.numeroComprobante || 'S-N').replace(/[^a-zA-Z0-9\-_]/g, '');
       const safeFecha = form.fecha || 'Sin_Fecha';
       
-      // Intentamos mantener la extensión original (.pdf, .jpg, etc.)
       const originalName = currentDoc.file.name || '';
       const extMatch = originalName.match(/\.([a-z0-9]+)$/i);
       const ext = extMatch ? extMatch[1] : 'pdf';
       
       const forcedFileName = `${safeFecha} - ${safeProveedor} - ${safeNum}.${ext}`;
+
+      // 🧠 ENTRENAMIENTO MANUAL: El sistema aprende lo que tú confirmas como correcto
+      saveToMemory(form);
 
       // 2. SUBIR A GOOGLE DRIVE
       const token = localStorage.getItem('cortex_google_token');
@@ -194,7 +215,7 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
         console.warn("No hay token de Drive o archivo físico. Guardando solo en Firestore.");
       }
 
-      // 3. GUARDAR EN FIRESTORE (pasando la nueva driveUrl)
+      // 3. GUARDAR EN FIRESTORE
       await saveExpenseAndIncrementProject(db, projectId, {
         actividad: form.actividad,
         fecha: form.fecha,
@@ -203,7 +224,7 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
         proveedor: form.proveedor,
         ruc: form.ruc,
         itemDetalle: form.itemDetalle,
-        moneda: 'PEN', // Mantenemos PEN porque el backend consolida en soles
+        moneda: 'PEN', 
         tipoCambio: null,
         montoTotal: montoFinalPenNum,
       }, driveUrl);
@@ -236,7 +257,6 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
       />
 
       <div className="fixed inset-0 pointer-events-none flex flex-col items-center justify-center p-4 md:p-8 z-[61]">
-        {/* CONTENEDOR PRINCIPAL EXPANDIDO (max-w-[85rem] ~ 1360px) */}
         <div className="flex items-center justify-center gap-6 w-full max-w-[85rem] h-full pointer-events-auto">
           
           {!geminiReady ? (
@@ -248,7 +268,7 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
             </div>
           ) : (
             <>
-              {/* CAJA IZQUIERDA: PREVIEW (48% de ancho para cederle al formulario) */}
+              {/* CAJA IZQUIERDA: PREVIEW */}
               <section className="flex h-full w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50/95 backdrop-blur-xl shadow-2xl lg:w-[48%]">
                 <p className="shrink-0 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400 md:px-6 border-b border-slate-200">
                   Vista previa
@@ -343,7 +363,7 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
                 </div>
               </section>
 
-              {/* CAJA DERECHA: FORMULARIO (52% de ancho para respirar) */}
+              {/* CAJA DERECHA: FORMULARIO */}
               <section className="flex h-full w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl shadow-2xl lg:w-[52%]">
                 <header className="shrink-0 p-5 md:p-6 border-b border-slate-200 bg-white/90 backdrop-blur-xl z-20 flex flex-col gap-4">
                   <div className="flex items-start justify-between gap-4">
@@ -431,7 +451,7 @@ export default function ExtractionDrawer({ open, onClose, project, onSaved }) {
                         <FieldSkeleton className="h-24 w-full" />
                         <div className="flex items-center gap-3 justify-center text-xs font-bold text-blue-600 mt-8 bg-blue-50 py-3 rounded-xl border border-blue-100">
                           <Loader2 className="h-5 w-5 animate-spin" />
-                          Gemini está analizando el documento...
+                          Procesando el documento...
                         </div>
                       </div>
                     ) : null}
